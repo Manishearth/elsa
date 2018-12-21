@@ -3,5 +3,7 @@ name = "elsa"
 version = "0.1.0"
 authors = ["Manish Goregaokar <manishsmail@gmail.com>"]
 edition = "2018"
+description = "Append-only collections for Rust where borrows to entries can outlive insertions"
+license = "MIT/Apache-2.0"
 
 [dependencies]
