@@ -1,5 +1,5 @@
 [package]
-name = "frozenmap"
+name = "elsa"
 version = "0.1.0"
 authors = ["Manish Goregaokar <manishsmail@gmail.com>"]
 edition = "2018"
