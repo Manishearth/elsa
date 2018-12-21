@@ -44,3 +44,30 @@ impl<K: FrozenDeref + Eq + Hash, V: FrozenDeref> FrozenMap<K, V> {
         }
     }
 }
+
+
+pub struct FrozenVec<T> {
+    vec: UnsafeCell<Vec<T>>
+}
+
+impl<T: FrozenDeref> FrozenVec<T> {
+    pub fn new() -> Self {
+        Self {
+            vec: UnsafeCell::new(Default::default())
+        }
+    }
+
+    pub fn push(&self, val: T) {
+        unsafe {
+            let vec = self.vec.get();
+            (*vec).push(val)
+        }
+    }
+
+    pub fn get(&self, index: usize) -> Option<&T::Target> {
+        unsafe {
+            let vec = self.vec.get();
+            (*vec).get(index).map(|x| &**x)
+        }
+    }
+}
