@@ -16,20 +16,8 @@ use std::borrow::Borrow;
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::ops::Deref;
-use std::rc::Rc;
-use std::sync::Arc;
 
-/// This trait can be implemented for types where dereferencing
-/// a value of the type returns something that has no references to the stack
-/// data of `value` (only heap data). In other words, `foo.deref()` returns a
-/// reference that is stable even when `foo` is moved.
-pub unsafe trait FrozenDeref: Deref {}
-unsafe impl FrozenDeref for String {}
-unsafe impl<T> FrozenDeref for Box<T> {}
-unsafe impl<T> FrozenDeref for Rc<T> {}
-unsafe impl<T> FrozenDeref for Arc<T> {}
-unsafe impl<T> FrozenDeref for Vec<T> {}
+use stable_deref_trait::StableDeref;
 
 /// Append-only version of `std::collections::HashMap` where
 /// insertion does not require mutable access
@@ -39,7 +27,7 @@ pub struct FrozenMap<K, V> {
 
 // safety: UnsafeCell implies !Sync
 
-impl<K: Eq + Hash, V: FrozenDeref> FrozenMap<K, V> {
+impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     // these should never return &K or &V
     // these should never delete any entries
 
@@ -78,7 +66,7 @@ pub struct FrozenVec<T> {
 
 // safety: UnsafeCell implies !Sync
 
-impl<T: FrozenDeref> FrozenVec<T> {
+impl<T: StableDeref> FrozenVec<T> {
     pub fn new() -> Self {
         Self {
             vec: UnsafeCell::new(Default::default()),
