@@ -35,7 +35,7 @@ pub struct FrozenMap<K, V> {
 
 // safety: UnsafeCell implies !Sync
 
-impl<K: FrozenDeref + Eq + Hash, V: FrozenDeref> FrozenMap<K, V> {
+impl<K: Eq + Hash, V: FrozenDeref> FrozenMap<K, V> {
     // these should never return &K or &V
     // these should never delete any entries
 
