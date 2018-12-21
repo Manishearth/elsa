@@ -13,7 +13,7 @@
 //! I haven't completely thought out the safety aspects of this, use at your own risk.
 
 use std::borrow::Borrow;
-use std::cell::UnsafeCell;
+use std::cell::{Cell, UnsafeCell};
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -23,6 +23,12 @@ use stable_deref_trait::StableDeref;
 /// insertion does not require mutable access
 pub struct FrozenMap<K, V> {
     map: UnsafeCell<HashMap<K, V>>,
+    /// Eq/Hash implementations can have side-effects, and using Rc it is possible
+    /// for FrozenMap::insert to be called on a key that itself contains the same 
+    /// `FrozenMap`, whose `eq` implementation also calls FrozenMap::insert
+    ///
+    /// We use this `in_use` flag to guard against any reentrancy.
+    in_use: Cell<bool>,
 }
 
 // safety: UnsafeCell implies !Sync
@@ -34,14 +40,19 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     pub fn new() -> Self {
         Self {
             map: UnsafeCell::new(Default::default()),
+            in_use: Cell::new(false)
         }
     }
 
     pub fn insert(&self, k: K, v: V) -> &V::Target {
-        unsafe {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let ret = unsafe {
             let map = self.map.get();
             &*(*map).entry(k).or_insert(v)
-        }
+        };
+        self.in_use.set(false);
+        ret
     }
 
     pub fn get<Q>(&self, k: &Q) -> Option<&V::Target>
@@ -49,10 +60,14 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         K: Borrow<Q>,
         Q: Hash + Eq,
     {
-        unsafe {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let ret = unsafe {
             let map = self.map.get();
             (*map).get(k).map(|x| &**x)
-        }
+        };
+        self.in_use.set(false);
+        ret
     }
 
     // TODO add more
@@ -62,6 +77,8 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
 /// insertion does not require mutable access
 pub struct FrozenVec<T> {
     vec: UnsafeCell<Vec<T>>,
+    // XXXManishearth do we need a reentrancy guard here as well?
+    // StableDeref may not guarantee that there are no side effects
 }
 
 // safety: UnsafeCell implies !Sync
