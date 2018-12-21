@@ -20,6 +20,10 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
 
+/// This trait can be implemented for types where dereferencing
+/// a value of the type returns something that has no references to the stack
+/// data of `value` (only heap data). In other words, `foo.deref()` returns a
+/// reference that is stable even when `foo` is moved.
 pub unsafe trait FrozenDeref: Deref {}
 unsafe impl FrozenDeref for String {}
 unsafe impl<T> FrozenDeref for Box<T> {}
