@@ -55,7 +55,7 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         ret
     }
 
-    pub fn get<Q>(&self, k: &Q) -> Option<&V::Target>
+    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V::Target>
     where
         K: Borrow<Q>,
         Q: Hash + Eq,
