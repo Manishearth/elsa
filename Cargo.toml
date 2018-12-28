@@ -1,10 +1,12 @@
 [package]
 name = "elsa"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Manish Goregaokar <manishsmail@gmail.com>"]
 edition = "2018"
 description = "Append-only collections for Rust where borrows to entries can outlive insertions"
 license = "MIT/Apache-2.0"
+documentation = "https://docs.rs/elsa/"
+repository = "https://github.com/manishearth/elsa"
 
 [dependencies]
 stable_deref_trait = "1.1.1"
