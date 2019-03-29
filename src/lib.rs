@@ -11,5 +11,7 @@
 pub mod map;
 pub mod vec;
 
+pub mod sync;
+
 pub use map::FrozenMap;
 pub use vec::FrozenVec;
