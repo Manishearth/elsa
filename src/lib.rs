@@ -105,5 +105,12 @@ impl<T: StableDeref> FrozenVec<T> {
         }
     }
 
+    pub fn len(&self) -> usize {
+        unsafe {
+            let vec = self.vec.get();
+            (*vec).len()
+        }
+    }
+
     // TODO add more
 }
