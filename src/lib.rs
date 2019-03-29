@@ -9,8 +9,6 @@
 //! allocation (`&str`, `&[T]`, and `&T` respectively)
 //!
 //! The typical use case is having a global cache of strings or other data which the rest of the program borrows from.
-//!
-//! I haven't completely thought out the safety aspects of this, use at your own risk.
 
 use std::borrow::Borrow;
 use std::cell::{Cell, UnsafeCell};
