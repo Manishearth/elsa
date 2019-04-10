@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/Manishearth/elsa.svg?branch=master)](https://travis-ci.org/Manishearth/elsa)
 [![Current Version](https://meritbadge.herokuapp.com/elsa)](https://crates.io/crates/elsa)
-[![License: MIT/Apache-2.0](https://img.shields.io/crates/l/reiterate.svg)](#license)
+[![License: MIT/Apache-2.0](https://img.shields.io/crates/l/elsa.svg)](#license)
 
 This crate provides various "frozen" collections.
 
