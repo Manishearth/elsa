@@ -1,5 +1,3 @@
-//! **This crate is unfinished, please don't use it yet!**
-
 //! This crate provides various "Frozen" collections.
 //!
 //! These are append-only collections where references to entries can be held
