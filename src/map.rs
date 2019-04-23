@@ -21,17 +21,18 @@ pub struct FrozenMap<K, V> {
 
 // safety: UnsafeCell implies !Sync
 
-impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
-    // these should never return &K or &V
-    // these should never delete any entries
-
+impl<K: Eq + Hash, V> FrozenMap<K, V> {
     pub fn new() -> Self {
         Self {
             map: UnsafeCell::new(Default::default()),
             in_use: Cell::new(false)
         }
     }
+}
 
+impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
+    // these should never return &K or &V
+    // these should never delete any entries
     pub fn insert(&self, k: K, v: V) -> &V::Target {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -56,6 +57,10 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         };
         self.in_use.set(false);
         ret
+    }
+
+    pub fn into_map(self) -> HashMap<K, V> {
+        self.map.into_inner()
     }
 
     // TODO add more
@@ -83,5 +88,11 @@ impl<K: Eq + Hash, V> FromIterator<(K, V)> for FrozenMap<K, V> {
         T: IntoIterator<Item = (K, V)> {
         let map: HashMap<_, _> = iter.into_iter().collect();
         map.into()
+    }
+}
+
+impl<K: Eq + Hash, V:> Default for FrozenMap<K, V> {
+    fn default() -> Self {
+        FrozenMap::new()
     }
 }

@@ -8,8 +8,8 @@
 //!
 //! The typical use case is having a global cache of strings or other data which the rest of the program borrows from.
 
-mod map;
-mod vec;
+pub mod map;
+pub mod vec;
 
 pub use map::FrozenMap;
 pub use vec::FrozenVec;
