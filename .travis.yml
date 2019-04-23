@@ -10,3 +10,4 @@ script:
   - cargo test
   - cargo run --example fluentresource
   - cargo run --example arena
+  - cargo run --example mutable_arena
