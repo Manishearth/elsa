@@ -112,3 +112,12 @@ impl<T: StableDeref> FrozenVec<T> {
 
     // TODO add more
 }
+
+
+impl<T> From<Vec<T>> for FrozenVec<T> {
+    fn from(vec: Vec<T>) -> Self {
+        Self {
+            vec: UnsafeCell::new(vec)
+        }
+    }
+}
