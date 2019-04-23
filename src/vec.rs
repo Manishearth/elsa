@@ -6,7 +6,6 @@ use stable_deref_trait::StableDeref;
 
 /// Append-only version of `std::vec::Vec` where
 /// insertion does not require mutable access
-#[derive(Default)]
 pub struct FrozenVec<T> {
     vec: UnsafeCell<Vec<T>>,
     // XXXManishearth do we need a reentrancy guard here as well?
@@ -15,13 +14,15 @@ pub struct FrozenVec<T> {
 
 // safety: UnsafeCell implies !Sync
 
-impl<T: StableDeref> FrozenVec<T> {
+impl<T> FrozenVec<T> {
     pub fn new() -> Self {
         Self {
             vec: UnsafeCell::new(Default::default()),
         }
     }
+}
 
+impl<T: StableDeref> FrozenVec<T> {
     // these should never return &T
     // these should never delete any entries
 
@@ -56,6 +57,11 @@ impl<T: StableDeref> FrozenVec<T> {
     // TODO add more
 }
 
+impl<T> Default for FrozenVec<T> {
+    fn default() -> Self {
+        FrozenVec::new()
+    }
+}
 
 impl<T> From<Vec<T>> for FrozenVec<T> {
     fn from(vec: Vec<T>) -> Self {

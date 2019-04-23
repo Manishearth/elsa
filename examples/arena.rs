@@ -6,7 +6,7 @@ fn main() {
     let best_friend = arena.add_thing("best friend", vec![lonely]);
     let threes_a_crowd = arena.add_thing("threes a crowd", vec![lonely, best_friend]);
     let rando = arena.add_thing("rando", vec![]);
-    let facebook = arena.add_thing("facebook", vec![rando, threes_a_crowd, lonely, best_friend]);
+    let _facebook = arena.add_thing("facebook", vec![rando, threes_a_crowd, lonely, best_friend]);
 
     assert!(cmp_ref(lonely, best_friend.friends[0]));
     assert!(cmp_ref(best_friend, threes_a_crowd.friends[1]));
