@@ -12,6 +12,7 @@ use std::borrow::Borrow;
 use std::cell::{Cell, UnsafeCell};
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::ops::Index;
 
 use stable_deref_trait::StableDeref;
 
@@ -119,5 +120,13 @@ impl<T> From<Vec<T>> for FrozenVec<T> {
         Self {
             vec: UnsafeCell::new(vec)
         }
+    }
+}
+
+impl<T: StableDeref> Index<usize> for FrozenVec<T> {
+    type Output = T::Target;
+    fn index(&self, idx: usize) -> &T::Target {
+        self.get(idx)
+            .unwrap_or_else(|| panic!("index out of bounds: the len is {} but the index is {}", self.len(), idx))
     }
 }

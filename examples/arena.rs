@@ -38,8 +38,7 @@ impl<'arena> Arena<'arena> {
         self.things.push(Box::new(Thing {
             name, friends
         }));
-        // elsa probably needs an Index impl
-        self.things.get(idx).unwrap()
+        &self.things[idx]
     }
 
     fn dump(&'arena self) {
