@@ -79,6 +79,13 @@ impl<K, V> From<HashMap<K, V>> for FrozenMap<K, V> {
     }
 }
 
+impl<K: Eq + Hash, V: StableDeref> Index<K> for FrozenMap<K, V> {
+    type Output = V::Target;
+    fn index(&self, idx: K) -> &V::Target {
+        self.get(&idx).expect("attempted to index FrozenMap with unknown key")
+    }
+}
+
 /// Append-only version of `std::vec::Vec` where
 /// insertion does not require mutable access
 pub struct FrozenVec<T> {
