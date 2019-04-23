@@ -70,6 +70,15 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     // TODO add more
 }
 
+impl<K, V> From<HashMap<K, V>> for FrozenMap<K, V> {
+    fn from(map: HashMap<K, V>) -> Self {
+        Self {
+            map: UnsafeCell::new(map),
+            in_use: Cell::new(false)
+        }
+    }
+}
+
 /// Append-only version of `std::vec::Vec` where
 /// insertion does not require mutable access
 pub struct FrozenVec<T> {
