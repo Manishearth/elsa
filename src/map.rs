@@ -58,6 +58,10 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         ret
     }
 
+    pub fn into_map(self) -> HashMap<K, V> {
+        self.map.into_inner()
+    }
+
     // TODO add more
 }
 

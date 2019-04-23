@@ -48,6 +48,10 @@ impl<T: StableDeref> FrozenVec<T> {
     pub fn iter(&self) -> Iter<T> {
         self.into_iter()
     }
+
+    pub fn into_vec(self) -> Vec<T> {
+        self.vec.into_inner()
+    }
     // TODO add more
 }
 
@@ -59,6 +63,7 @@ impl<T> From<Vec<T>> for FrozenVec<T> {
         }
     }
 }
+
 
 impl<T: StableDeref> Index<usize> for FrozenVec<T> {
     type Output = T::Target;
