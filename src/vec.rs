@@ -45,6 +45,9 @@ impl<T: StableDeref> FrozenVec<T> {
         }
     }
 
+    pub fn iter(&self) -> Iter<T> {
+        self.into_iter()
+    }
     // TODO add more
 }
 
@@ -72,4 +75,48 @@ impl<A> FromIterator<A> for FrozenVec<A> {
         let vec: Vec<_> = iter.into_iter().collect();
         vec.into()
     }
+}
+
+/// Iterator over FrozenVec, obtained via `.iter()`
+///
+/// It is safe to push to the vector during iteration
+pub struct Iter<'a, T> {
+    vec: &'a FrozenVec<T>,
+    idx: usize
+}
+
+impl<'a, T: StableDeref> Iterator for Iter<'a, T> {
+    type Item = &'a T::Target;
+    fn next(&mut self) -> Option<&'a T::Target> {
+        if let Some(ret) = self.vec.get(self.idx) {
+            self.idx += 1;
+            Some(ret)
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T: StableDeref> IntoIterator for &'a FrozenVec<T> {
+    type Item = &'a T::Target;
+    type IntoIter = Iter<'a, T>;
+    fn into_iter(self) -> Iter<'a, T> {
+        Iter {
+            vec: self,
+            idx: 0
+        }
+    }
+}
+
+#[test]
+fn test_iteration() {
+    let vec = vec!["a", "b", "c", "d"];
+    let frozen: FrozenVec<_> = vec.clone().into();
+
+    assert_eq!(vec, frozen.iter().collect::<Vec<_>>());
+    for (e1, e2) in vec.iter().zip(frozen.iter()) {
+        assert_eq!(*e1, e2);
+    }
+
+    assert_eq!(vec.len(), frozen.iter().count())
 }

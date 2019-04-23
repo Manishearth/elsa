@@ -42,8 +42,7 @@ impl<'arena> Arena<'arena> {
     }
 
     fn dump(&'arena self) {
-        for i in 0..self.things.len() {
-            let thing = &self.things[i];
+        for thing in &self.things {
             println!("friends of {}:", thing.name);
             for friend in &thing.friends {
                 println!("\t{}", friend.name);

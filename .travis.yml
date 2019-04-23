@@ -7,5 +7,6 @@ os:
 
 script:
   - cargo build
+  - cargo test
   - cargo run --example fluentresource
   - cargo run --example arena
