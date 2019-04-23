@@ -87,6 +87,15 @@ impl<K: Eq + Hash, V: StableDeref> Index<K> for FrozenMap<K, V> {
     }
 }
 
+impl<K: Eq + Hash, V> FromIterator<(K, V)> for FrozenMap<K, V> {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = (K, V)> {
+        let map: HashMap<_, _> = iter.into_iter().collect();
+        map.into()
+    }
+}
+
 /// Append-only version of `std::vec::Vec` where
 /// insertion does not require mutable access
 pub struct FrozenVec<T> {
