@@ -36,7 +36,7 @@ impl<'arena> Arena<'arena> {
         self.things.push(Box::new(Thing {
             name,
             friends: friends.into(),
-            reverse_friends: FrozenVec::new(),
+            reverse_friends: Default::default(),
         }));
         let me = &self.things[idx];
         for friend in &me.friends {

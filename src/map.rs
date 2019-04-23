@@ -89,3 +89,9 @@ impl<K: Eq + Hash, V> FromIterator<(K, V)> for FrozenMap<K, V> {
         map.into()
     }
 }
+
+impl<K: Eq + Hash, V: StableDeref> Default for FrozenMap<K, V> {
+    fn default() -> Self {
+        FrozenMap::new()
+    }
+}
