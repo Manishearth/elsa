@@ -12,6 +12,8 @@ use std::borrow::Borrow;
 use std::cell::{Cell, UnsafeCell};
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::iter::FromIterator;
+use std::ops::Index;
 
 use stable_deref_trait::StableDeref;
 
@@ -69,6 +71,31 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     // TODO add more
 }
 
+impl<K, V> From<HashMap<K, V>> for FrozenMap<K, V> {
+    fn from(map: HashMap<K, V>) -> Self {
+        Self {
+            map: UnsafeCell::new(map),
+            in_use: Cell::new(false)
+        }
+    }
+}
+
+impl<K: Eq + Hash, V: StableDeref> Index<K> for FrozenMap<K, V> {
+    type Output = V::Target;
+    fn index(&self, idx: K) -> &V::Target {
+        self.get(&idx).expect("attempted to index FrozenMap with unknown key")
+    }
+}
+
+impl<K: Eq + Hash, V> FromIterator<(K, V)> for FrozenMap<K, V> {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = (K, V)> {
+        let map: HashMap<_, _> = iter.into_iter().collect();
+        map.into()
+    }
+}
+
 /// Append-only version of `std::vec::Vec` where
 /// insertion does not require mutable access
 pub struct FrozenVec<T> {
@@ -111,4 +138,30 @@ impl<T: StableDeref> FrozenVec<T> {
     }
 
     // TODO add more
+}
+
+
+impl<T> From<Vec<T>> for FrozenVec<T> {
+    fn from(vec: Vec<T>) -> Self {
+        Self {
+            vec: UnsafeCell::new(vec)
+        }
+    }
+}
+
+impl<T: StableDeref> Index<usize> for FrozenVec<T> {
+    type Output = T::Target;
+    fn index(&self, idx: usize) -> &T::Target {
+        self.get(idx)
+            .unwrap_or_else(|| panic!("index out of bounds: the len is {} but the index is {}", self.len(), idx))
+    }
+}
+
+impl<A> FromIterator<A> for FrozenVec<A> {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = A> {
+        let vec: Vec<_> = iter.into_iter().collect();
+        vec.into()
+    }
 }
