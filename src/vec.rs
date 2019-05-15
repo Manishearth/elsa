@@ -33,6 +33,15 @@ impl<T: StableDeref> FrozenVec<T> {
         }
     }
 
+    /// Push, immediately getting a reference to the element
+    pub fn push_get(&self, val: T) -> &T::Target {
+        unsafe {
+            let vec = self.vec.get();
+            (*vec).push(val);
+            &*(&**(*vec).get_unchecked((*vec).len() - 1) as *const T::Target)
+        }
+    }
+
     pub fn get(&self, index: usize) -> Option<&T::Target> {
         unsafe {
             let vec = self.vec.get();

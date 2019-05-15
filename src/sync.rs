@@ -79,6 +79,16 @@ impl<T: StableDeref> FrozenVec<T> {
         vec.push(val);
     }
 
+    /// Push, immediately getting a reference to the element
+    pub fn push_get(&self, val: T) -> &T::Target {
+        let mut vec = self.vec.write().unwrap();
+        vec.push(val);
+        unsafe {
+            &*(&**vec.get_unchecked(vec.len() - 1) as *const T::Target)
+        }
+    }
+
+
     pub fn get(&self, index: usize) -> Option<&T::Target> {
         let vec = self.vec.read().unwrap();
         unsafe {
