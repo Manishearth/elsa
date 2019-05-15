@@ -11,3 +11,5 @@ script:
   - cargo run --example fluentresource
   - cargo run --example arena
   - cargo run --example mutable_arena
+  - cargo run --example sync
+
