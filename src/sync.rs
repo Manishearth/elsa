@@ -1,9 +1,10 @@
-//! **This crate is unfinished, please don't use it yet!**
-
+//! **This module is experimental**
+//!
 //! This module provides threadsafe versions of FrozenMap and FrozenVec,
 //! ideal for use as a cache.
 //!
 //! These lock internally, however locks only last as long as the method calls
+//!
 
 use std::borrow::Borrow;
 use std::collections::HashMap;
