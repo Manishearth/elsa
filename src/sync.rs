@@ -20,8 +20,6 @@ pub struct FrozenMap<K, V> {
     map: RwLock<HashMap<K, V>>
 }
 
-unsafe impl<K, V> Sync for FrozenMap<K, V> {}
-
 impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     // these should never return &K or &V
     // these should never delete any entries
@@ -61,8 +59,6 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
 pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
 }
-
-unsafe impl<T> Sync for FrozenVec<T> {}
 
 impl<T: StableDeref> FrozenVec<T> {
     pub fn new() -> Self {
