@@ -7,7 +7,7 @@ use stable_deref_trait::StableDeref;
 
 /// Append-only version of `std::collections::HashSet` where
 /// insertion does not require mutable access
-//  We don't use `FrozenSet<T, ()>`, as the `StableDeref` requirements are different
+//  We don't use `FrozenMap<T, ()>`, as the `StableDeref` requirements are different
 //  We don't use `HashSet<T>` to get access to the `entry` API
 pub struct FrozenSet<T> {
     // FUTURE(rust-lang/rust#60896): use `set: UnsafeCell<HashSet<T>>` instead
