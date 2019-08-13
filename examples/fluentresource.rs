@@ -47,5 +47,8 @@ impl<'mgr> ResourceManager<'mgr> {
 fn main() {
     let manager = ResourceManager::new();
     let resource = manager.get_resource("somefile.ftl");
+    for (a, b) in manager.strings.iter() {
+        println!("{} -> {}", a, b);
+    }
     println!("{:?}", resource);
 }

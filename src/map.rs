@@ -12,7 +12,7 @@ use stable_deref_trait::StableDeref;
 pub struct FrozenMap<K, V> {
     map: UnsafeCell<HashMap<K, V>>,
     /// Eq/Hash implementations can have side-effects, and using Rc it is possible
-    /// for FrozenMap::insert to be called on a key that itself contains the same 
+    /// for FrozenMap::insert to be called on a key that itself contains the same
     /// `FrozenMap`, whose `eq` implementation also calls FrozenMap::insert
     ///
     /// We use this `in_use` flag to guard against any reentrancy.
@@ -66,6 +66,12 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     // TODO add more
 }
 
+impl<K: Eq + Hash + StableDeref, V: StableDeref> FrozenMap<K, V> {
+    pub fn iter(&self) -> Iter<K, V> {
+        self.into_iter()
+    }
+}
+
 impl<K, V> From<HashMap<K, V>> for FrozenMap<K, V> {
     fn from(map: HashMap<K, V>) -> Self {
         Self {
@@ -94,5 +100,48 @@ impl<K: Eq + Hash, V> FromIterator<(K, V)> for FrozenMap<K, V> {
 impl<K: Eq + Hash, V:> Default for FrozenMap<K, V> {
     fn default() -> Self {
         FrozenMap::new()
+    }
+}
+
+/// Iterator over FrozenHashMap, obtained via `.iter()`
+///
+/// Inserting elements to the map during iteration will panic
+pub struct Iter<'a, K, V> {
+    map: &'a FrozenMap<K, V>,
+    iter: Option<std::collections::hash_map::Iter<'a, K, V>>,
+}
+
+impl<'a, K, V> Drop for Iter<'a, K, V> {
+    fn drop(&mut self) {
+        self.iter.take();
+        self.map.in_use.set(false);
+    }
+}
+
+impl<'a, K: StableDeref, V: StableDeref> Iterator for Iter<'a, K, V> {
+    type Item = (&'a K::Target, &'a V::Target);
+    fn next(&mut self) -> Option<(&'a K::Target, &'a V::Target)> {
+        let val = self.iter.as_mut()?.next();
+        if val.is_none() {
+            self.iter.take();
+            self.map.in_use.set(false);
+        }
+        val.map(|(k, v)| (&**k, &**v))
+    }
+}
+
+impl<'a, K: StableDeref, V: StableDeref> IntoIterator for &'a FrozenMap<K, V> {
+    type Item = (&'a K::Target, &'a V::Target);
+    type IntoIter = Iter<'a, K, V>;
+    fn into_iter(self) -> Iter<'a, K, V> {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        Iter {
+            map: self,
+            iter: unsafe {
+                let map = self.map.get();
+                Some((&*map).iter())
+            },
+        }
     }
 }
