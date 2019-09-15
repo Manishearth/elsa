@@ -63,6 +63,17 @@ impl<T: StableDeref> FrozenVec<T> {
     pub fn into_vec(self) -> Vec<T> {
         self.vec.into_inner()
     }
+
+    /// Get mutable access to the underlying vector.
+    ///
+    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
+    /// the 'frozen' contents.
+    pub fn as_mut(&mut self) -> &mut Vec<T> {
+        unsafe {
+            &mut *self.vec.get()
+        }
+    }
+
     // TODO add more
 }
 
