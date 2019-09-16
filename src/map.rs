@@ -63,6 +63,16 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         self.map.into_inner()
     }
 
+    /// Get mutable access to the underlying [`HashMap`].
+    ///
+    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
+    /// the 'frozen' contents.
+    pub fn as_mut(&mut self) -> &mut HashMap<K, V> {
+        unsafe {
+            &mut *self.map.get()
+        }
+    }
+
     // TODO add more
 }
 
