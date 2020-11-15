@@ -10,9 +10,6 @@ repository = "https://github.com/manishearth/elsa"
 keywords = ["data-structure", "map", "frozen", "cache", "arena"]
 categories = ["data-structures", "caching"]
 
-[features]
-default = ["indexmap"]
-
 [dependencies]
 stable_deref_trait = "1.1.1"
 indexmap = { version = "1.6", optional = true }
