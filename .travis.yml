@@ -12,4 +12,5 @@ script:
   - cargo run --example arena
   - cargo run --example mutable_arena
   - cargo run --example sync
+  - cargo run --example string_interner --features indexmap
 

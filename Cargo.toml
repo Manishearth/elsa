@@ -12,3 +12,12 @@ categories = ["data-structures", "caching"]
 
 [dependencies]
 stable_deref_trait = "1.1.1"
+indexmap = { version = "1.6", optional = true }
+
+[package.metadata.docs.rs]
+features = ["indexmap"]
+
+[[example]]
+name = "string_interner"
+path = "examples/string_interner.rs"
+required-features = ["indexmap"]

@@ -11,7 +11,17 @@
 pub mod map;
 pub mod vec;
 
+#[cfg(feature = "indexmap")]
+pub mod index_map;
+#[cfg(feature = "indexmap")]
+pub mod index_set;
+
 pub mod sync;
 
 pub use map::FrozenMap;
 pub use vec::FrozenVec;
+
+#[cfg(feature = "indexmap")]
+pub use index_map::FrozenIndexMap;
+#[cfg(feature = "indexmap")]
+pub use index_set::FrozenIndexSet;
