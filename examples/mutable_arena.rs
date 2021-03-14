@@ -59,3 +59,16 @@ impl<'arena> Arena<'arena> {
         }
     }
 }
+
+// Note that the following will cause the above code to stop compiling
+// since non-eyepatched custom destructors can potentially
+// read deallocated data.
+//
+// impl<'arena> Drop for Thing<'arena> {
+//     fn drop(&mut self) {
+//         println!("goodbye {:?}", self.name);
+//         for friend in &self.friends {
+//             println!("\t\t{}", friend.name);
+//         }
+//     }
+// }
