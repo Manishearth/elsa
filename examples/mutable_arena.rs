@@ -2,58 +2,58 @@ use elsa::FrozenVec;
 
 fn main() {
     let arena = Arena::new();
-    let lonely = arena.add_thing("lonely", vec![]);
-    let best_friend = arena.add_thing("best friend", vec![lonely]);
-    let threes_a_crowd = arena.add_thing("threes a crowd", vec![lonely, best_friend]);
-    let rando = arena.add_thing("rando", vec![]);
-    let _facebook = arena.add_thing("facebook", vec![rando, threes_a_crowd, lonely, best_friend]);
+    let lonely = arena.add_person("lonely", vec![]);
+    let best_friend = arena.add_person("best friend", vec![lonely]);
+    let threes_a_crowd = arena.add_person("threes a crowd", vec![lonely, best_friend]);
+    let rando = arena.add_person("rando", vec![]);
+    let _everyone = arena.add_person("follows everyone", vec![rando, threes_a_crowd, lonely, best_friend]);
     arena.dump();
 }
 
 
 struct Arena<'arena> {
-    things: FrozenVec<Box<Thing<'arena>>>,
+    people: FrozenVec<Box<Person<'arena>>>,
 }
 
-struct Thing<'arena> {
-    pub friends: FrozenVec<ThingRef<'arena>>,
-    pub reverse_friends: FrozenVec<ThingRef<'arena>>,
+struct Person<'arena> {
+    pub follows: FrozenVec<PersonRef<'arena>>,
+    pub reverse_follows: FrozenVec<PersonRef<'arena>>,
     pub name: &'static str,
 }
 
-type ThingRef<'arena> = &'arena Thing<'arena>;
+type PersonRef<'arena> = &'arena Person<'arena>;
 
 
 impl<'arena> Arena<'arena> {
     fn new() -> Arena<'arena> {
         Arena {
-            things: FrozenVec::new(),
+            people: FrozenVec::new(),
         }
     }
     
-    fn add_thing(&'arena self, name: &'static str, friends: Vec<ThingRef<'arena>>) -> ThingRef<'arena> {
-        let idx = self.things.len();
-        self.things.push(Box::new(Thing {
+    fn add_person(&'arena self, name: &'static str, follows: Vec<PersonRef<'arena>>) -> PersonRef<'arena> {
+        let idx = self.people.len();
+        self.people.push(Box::new(Person {
             name,
-            friends: friends.into(),
-            reverse_friends: Default::default(),
+            follows: follows.into(),
+            reverse_follows: Default::default(),
         }));
-        let me = &self.things[idx];
-        for friend in &me.friends {
-            friend.reverse_friends.push(me)
+        let me = &self.people[idx];
+        for friend in &me.follows {
+            friend.reverse_follows.push(me)
         }
         me
     }
 
     fn dump(&'arena self) {
-        for thing in &self.things {
-            println!("friends of {}:", thing.name);
-            println!("\tdirect friends:");
-            for friend in &thing.friends {
+        for thing in &self.people {
+            println!("{} network:", thing.name);
+            println!("\tfollowing:");
+            for friend in &thing.follows {
                 println!("\t\t{}", friend.name);
             }
-            println!("\treverse friends:");
-            for friend in &thing.reverse_friends {
+            println!("\tfollowers:");
+            for friend in &thing.reverse_follows {
                 println!("\t\t{}", friend.name);
             }
         }
@@ -64,10 +64,10 @@ impl<'arena> Arena<'arena> {
 // since non-eyepatched custom destructors can potentially
 // read deallocated data.
 //
-// impl<'arena> Drop for Thing<'arena> {
+// impl<'arena> Drop for Person<'arena> {
 //     fn drop(&mut self) {
 //         println!("goodbye {:?}", self.name);
-//         for friend in &self.friends {
+//         for friend in &self.follows {
 //             println!("\t\t{}", friend.name);
 //         }
 //     }
