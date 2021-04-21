@@ -44,19 +44,31 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         ret
     }
 
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V::Target>
+    pub fn map_get<Q:?Sized, T, F>(&self, k:&Q, f:F) -> Option<T> 
     where
         K: Borrow<Q>,
         Q: Hash + Eq,
+        F: FnOnce(&V) -> T,
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
         let ret = unsafe {
             let map = self.map.get();
-            (*map).get(k).map(|x| &**x)
+            (*map).get(k).map(f)
         };
         self.in_use.set(false);
         ret
+    }
+
+    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V::Target>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.map_get(k, |x| unsafe {
+            let x = x as *const V;
+            &**x
+        })
     }
 
     pub fn into_map(self) -> HashMap<K, V> {
