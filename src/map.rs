@@ -91,7 +91,7 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     /// assert_eq!(map.map_get(&1, Clone::clone), Some(Box::new("a")));
     /// assert_eq!(map.map_get(&2, Clone::clone), None);
     /// ```
-    pub fn map_get<Q: ?Sized, T, F>(&self, k:&Q, f: F) -> Option<T> 
+    pub fn map_get<Q: ?Sized, T, F>(&self, k: &Q, f: F) -> Option<T> 
     where
         K: Borrow<Q>,
         Q: Hash + Eq,
