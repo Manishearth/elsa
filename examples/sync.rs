@@ -6,7 +6,7 @@ use std::thread;
 fn main() {
     let a = Arc::new(FrozenMap::new());
     for i in 1..10 {
-    let b = a.clone();
+        let b = a.clone();
         thread::spawn(move || {
             b.insert(i, i.to_string());
             thread::sleep_ms(300);
@@ -16,7 +16,6 @@ fn main() {
                     break;
                 } else {
                     thread::sleep_ms(200);
-
                 }
             }
         });

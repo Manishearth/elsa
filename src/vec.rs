@@ -69,9 +69,7 @@ impl<T: StableDeref> FrozenVec<T> {
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using
     /// the 'frozen' contents.
     pub fn as_mut(&mut self) -> &mut Vec<T> {
-        unsafe {
-            &mut *self.vec.get()
-        }
+        unsafe { &mut *self.vec.get() }
     }
 
     // TODO add more
@@ -86,24 +84,29 @@ impl<T> Default for FrozenVec<T> {
 impl<T> From<Vec<T>> for FrozenVec<T> {
     fn from(vec: Vec<T>) -> Self {
         Self {
-            vec: UnsafeCell::new(vec)
+            vec: UnsafeCell::new(vec),
         }
     }
 }
 
-
 impl<T: StableDeref> Index<usize> for FrozenVec<T> {
     type Output = T::Target;
     fn index(&self, idx: usize) -> &T::Target {
-        self.get(idx)
-            .unwrap_or_else(|| panic!("index out of bounds: the len is {} but the index is {}", self.len(), idx))
+        self.get(idx).unwrap_or_else(|| {
+            panic!(
+                "index out of bounds: the len is {} but the index is {}",
+                self.len(),
+                idx
+            )
+        })
     }
 }
 
 impl<A> FromIterator<A> for FrozenVec<A> {
     fn from_iter<T>(iter: T) -> Self
     where
-        T: IntoIterator<Item = A> {
+        T: IntoIterator<Item = A>,
+    {
         let vec: Vec<_> = iter.into_iter().collect();
         vec.into()
     }
@@ -114,7 +117,7 @@ impl<A> FromIterator<A> for FrozenVec<A> {
 /// It is safe to push to the vector during iteration
 pub struct Iter<'a, T> {
     vec: &'a FrozenVec<T>,
-    idx: usize
+    idx: usize,
 }
 
 impl<'a, T: StableDeref> Iterator for Iter<'a, T> {
@@ -133,10 +136,7 @@ impl<'a, T: StableDeref> IntoIterator for &'a FrozenVec<T> {
     type Item = &'a T::Target;
     type IntoIter = Iter<'a, T>;
     fn into_iter(self) -> Iter<'a, T> {
-        Iter {
-            vec: self,
-            idx: 0
-        }
+        Iter { vec: self, idx: 0 }
     }
 }
 
