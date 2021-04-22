@@ -6,10 +6,12 @@ fn main() {
     let best_friend = arena.add_person("best friend", vec![lonely]);
     let threes_a_crowd = arena.add_person("threes a crowd", vec![lonely, best_friend]);
     let rando = arena.add_person("rando", vec![]);
-    let _everyone = arena.add_person("follows everyone", vec![rando, threes_a_crowd, lonely, best_friend]);
+    let _everyone = arena.add_person(
+        "follows everyone",
+        vec![rando, threes_a_crowd, lonely, best_friend],
+    );
     arena.dump();
 }
-
 
 struct Arena<'arena> {
     people: FrozenVec<Box<Person<'arena>>>,
@@ -23,15 +25,18 @@ struct Person<'arena> {
 
 type PersonRef<'arena> = &'arena Person<'arena>;
 
-
 impl<'arena> Arena<'arena> {
     fn new() -> Arena<'arena> {
         Arena {
             people: FrozenVec::new(),
         }
     }
-    
-    fn add_person(&'arena self, name: &'static str, follows: Vec<PersonRef<'arena>>) -> PersonRef<'arena> {
+
+    fn add_person(
+        &'arena self,
+        name: &'static str,
+        follows: Vec<PersonRef<'arena>>,
+    ) -> PersonRef<'arena> {
         let idx = self.people.len();
         self.people.push(Box::new(Person {
             name,

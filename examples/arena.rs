@@ -13,7 +13,6 @@ fn main() {
     arena.dump();
 }
 
-
 struct Arena<'arena> {
     things: FrozenVec<Box<Thing<'arena>>>,
 }
@@ -25,19 +24,20 @@ struct Thing<'arena> {
 
 type ThingRef<'arena> = &'arena Thing<'arena>;
 
-
 impl<'arena> Arena<'arena> {
     fn new() -> Arena<'arena> {
         Arena {
             things: FrozenVec::new(),
         }
     }
-    
-    fn add_thing(&'arena self, name: &'static str, friends: Vec<ThingRef<'arena>>) -> ThingRef<'arena> {
+
+    fn add_thing(
+        &'arena self,
+        name: &'static str,
+        friends: Vec<ThingRef<'arena>>,
+    ) -> ThingRef<'arena> {
         let idx = self.things.len();
-        self.things.push(Box::new(Thing {
-            name, friends
-        }));
+        self.things.push(Box::new(Thing { name, friends }));
         &self.things[idx]
     }
 
@@ -50,7 +50,6 @@ impl<'arena> Arena<'arena> {
         }
     }
 }
-
 
 fn cmp_ref<T>(x: &T, y: &T) -> bool {
     x as *const T as usize == y as *const T as usize

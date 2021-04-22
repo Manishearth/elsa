@@ -17,7 +17,7 @@ use std::sync::RwLock;
 /// Append-only threadsafe version of `std::collections::HashMap` where
 /// insertion does not require mutable access
 pub struct FrozenMap<K, V> {
-    map: RwLock<HashMap<K, V>>
+    map: RwLock<HashMap<K, V>>,
 }
 
 impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
@@ -34,7 +34,7 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         let mut map = self.map.write().unwrap();
         let ret = unsafe {
             let inserted = &**map.entry(k).or_insert(v);
-            &* (inserted as *const _)
+            &*(inserted as *const _)
         };
         ret
     }
@@ -45,9 +45,7 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         Q: Hash + Eq,
     {
         let map = self.map.read().unwrap();
-        let ret = unsafe {
-            map.get(k).map(|x| &*(&**x as *const V::Target))
-        };
+        let ret = unsafe { map.get(k).map(|x| &*(&**x as *const V::Target)) };
         ret
     }
 
@@ -79,17 +77,12 @@ impl<T: StableDeref> FrozenVec<T> {
     pub fn push_get(&self, val: T) -> &T::Target {
         let mut vec = self.vec.write().unwrap();
         vec.push(val);
-        unsafe {
-            &*(&**vec.get_unchecked(vec.len() - 1) as *const T::Target)
-        }
+        unsafe { &*(&**vec.get_unchecked(vec.len() - 1) as *const T::Target) }
     }
-
 
     pub fn get(&self, index: usize) -> Option<&T::Target> {
         let vec = self.vec.read().unwrap();
-        unsafe {
-            vec.get(index).map(|x| &*(&**x as *const T::Target))
-        }
+        unsafe { vec.get(index).map(|x| &*(&**x as *const T::Target)) }
     }
 
     // TODO add more

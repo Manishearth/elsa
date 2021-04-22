@@ -12,7 +12,7 @@ use stable_deref_trait::StableDeref;
 pub struct FrozenIndexSet<T> {
     set: UnsafeCell<IndexSet<T>>,
     /// Eq/Hash implementations can have side-effects, and using Rc it is possible
-    /// for FrozenIndexSet::insert to be called on a key that itself contains the same 
+    /// for FrozenIndexSet::insert to be called on a key that itself contains the same
     /// `FrozenIndexSet`, whose `eq` implementation also calls FrozenIndexSet::insert
     ///
     /// We use this `in_use` flag to guard against any reentrancy.
@@ -25,7 +25,7 @@ impl<T: Eq + Hash> FrozenIndexSet<T> {
     pub fn new() -> Self {
         Self {
             set: UnsafeCell::new(Default::default()),
-            in_use: Cell::new(false)
+            in_use: Cell::new(false),
         }
     }
 }
@@ -136,9 +136,7 @@ impl<T: Eq + Hash + StableDeref> FrozenIndexSet<T> {
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using
     /// the 'frozen' contents.
     pub fn as_mut(&mut self) -> &mut IndexSet<T> {
-        unsafe {
-            &mut *self.set.get()
-        }
+        unsafe { &mut *self.set.get() }
     }
 
     // TODO add more
@@ -148,7 +146,7 @@ impl<T> From<IndexSet<T>> for FrozenIndexSet<T> {
     fn from(set: IndexSet<T>) -> Self {
         Self {
             set: UnsafeCell::new(set),
-            in_use: Cell::new(false)
+            in_use: Cell::new(false),
         }
     }
 }
@@ -170,7 +168,8 @@ impl<T: Eq + Hash + StableDeref> Index<usize> for FrozenIndexSet<T> {
 impl<T: Eq + Hash> FromIterator<T> for FrozenIndexSet<T> {
     fn from_iter<U>(iter: U) -> Self
     where
-        U: IntoIterator<Item = T> {
+        U: IntoIterator<Item = T>,
+    {
         let set: IndexSet<_> = iter.into_iter().collect();
         set.into()
     }

@@ -12,7 +12,7 @@ use stable_deref_trait::StableDeref;
 pub struct FrozenIndexMap<K, V> {
     map: UnsafeCell<IndexMap<K, V>>,
     /// Eq/Hash implementations can have side-effects, and using Rc it is possible
-    /// for FrozenIndexMap::insert to be called on a key that itself contains the same 
+    /// for FrozenIndexMap::insert to be called on a key that itself contains the same
     /// `FrozenIndexMap`, whose `eq` implementation also calls FrozenIndexMap::insert
     ///
     /// We use this `in_use` flag to guard against any reentrancy.
@@ -25,7 +25,7 @@ impl<K: Eq + Hash, V> FrozenIndexMap<K, V> {
     pub fn new() -> Self {
         Self {
             map: UnsafeCell::new(Default::default()),
-            in_use: Cell::new(false)
+            in_use: Cell::new(false),
         }
     }
 }
@@ -83,9 +83,7 @@ impl<K: Eq + Hash, V: StableDeref> FrozenIndexMap<K, V> {
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using
     /// the 'frozen' contents.
     pub fn as_mut(&mut self) -> &mut IndexMap<K, V> {
-        unsafe {
-            &mut *self.map.get()
-        }
+        unsafe { &mut *self.map.get() }
     }
 
     /// Returns true if the map contains no elements.
@@ -105,7 +103,7 @@ impl<K, V> From<IndexMap<K, V>> for FrozenIndexMap<K, V> {
     fn from(map: IndexMap<K, V>) -> Self {
         Self {
             map: UnsafeCell::new(map),
-            in_use: Cell::new(false)
+            in_use: Cell::new(false),
         }
     }
 }
@@ -113,20 +111,22 @@ impl<K, V> From<IndexMap<K, V>> for FrozenIndexMap<K, V> {
 impl<K: Eq + Hash, V: StableDeref> Index<K> for FrozenIndexMap<K, V> {
     type Output = V::Target;
     fn index(&self, idx: K) -> &V::Target {
-        self.get(&idx).expect("attempted to index FrozenIndexMap with unknown key")
+        self.get(&idx)
+            .expect("attempted to index FrozenIndexMap with unknown key")
     }
 }
 
 impl<K: Eq + Hash, V> FromIterator<(K, V)> for FrozenIndexMap<K, V> {
     fn from_iter<T>(iter: T) -> Self
     where
-        T: IntoIterator<Item = (K, V)> {
+        T: IntoIterator<Item = (K, V)>,
+    {
         let map: IndexMap<_, _> = iter.into_iter().collect();
         map.into()
     }
 }
 
-impl<K: Eq + Hash, V:> Default for FrozenIndexMap<K, V> {
+impl<K: Eq + Hash, V> Default for FrozenIndexMap<K, V> {
     fn default() -> Self {
         FrozenIndexMap::new()
     }

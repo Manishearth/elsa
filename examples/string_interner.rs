@@ -1,22 +1,22 @@
-use std::convert::AsRef;
 use std::collections::BTreeSet;
+use std::convert::AsRef;
 
 use elsa::FrozenIndexSet;
 
 struct StringInterner {
-    set: FrozenIndexSet<String>
+    set: FrozenIndexSet<String>,
 }
 
 impl StringInterner {
     fn new() -> Self {
         StringInterner {
-            set: FrozenIndexSet::new()
+            set: FrozenIndexSet::new(),
         }
     }
 
     fn get_or_intern<T>(&self, value: T) -> usize
     where
-        T: AsRef<str>
+        T: AsRef<str>,
     {
         // TODO use Entry in case the standard Entry API gets improved
         // (here to avoid premature allocation or double lookup)
@@ -25,7 +25,7 @@ impl StringInterner {
 
     fn get<T>(&self, value: T) -> Option<usize>
     where
-        T: AsRef<str>
+        T: AsRef<str>,
     {
         self.set.get_full(value.as_ref()).map(|(i, _r)| i)
     }

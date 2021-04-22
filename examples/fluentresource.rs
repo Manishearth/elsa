@@ -31,7 +31,6 @@ impl<'mgr> ResourceManager<'mgr> {
     pub fn get_resource(&'mgr self, path: &str) -> &'mgr FluentResource<'mgr> {
         let strings = &self.strings;
 
-
         if strings.get(path).is_some() {
             return self.resources.get(path).unwrap();
         } else {
