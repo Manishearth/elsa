@@ -1,4 +1,5 @@
 use std::cell::UnsafeCell;
+use std::cmp::Ordering;
 use std::iter::FromIterator;
 use std::ops::Index;
 
@@ -52,6 +53,12 @@ impl<T: StableDeref> FrozenVec<T> {
         }
     }
 
+    /// Returns a reference to an element, without doing bounds checking.
+    pub unsafe fn get_unchecked(&self, index: usize) -> &T::Target {
+        let vec = self.vec.get();
+        &**(*vec).get_unchecked(index)
+    }
+
     /// Returns the number of elements in the vector.
     pub fn len(&self) -> usize {
         unsafe {
@@ -97,6 +104,82 @@ impl<T: StableDeref> FrozenVec<T> {
     /// the 'frozen' contents.
     pub fn as_mut(&mut self) -> &mut Vec<T> {
         unsafe { &mut *self.vec.get() }
+    }
+
+    // binary search functions: they need to be reimplemented here to be safe (instead of calling
+    // their equivalents directly on the underlying Vec), as they run user callbacks that could
+    // reentrantly call other functions on this vector
+
+    /// Binary searches this sorted vector for a given element, analogous to [slice::binary_search].
+    pub fn binary_search(&self, x: &T::Target) -> Result<usize, usize>
+    where
+        T::Target: Ord,
+    {
+        self.binary_search_by(|p| p.cmp(x))
+    }
+
+    /// Binary searches this sorted vector with a comparator function, analogous to
+    /// [slice::binary_search_by].
+    pub fn binary_search_by<'a, F>(&'a self, mut f: F) -> Result<usize, usize>
+    where
+        F: FnMut(&'a T::Target) -> Ordering,
+    {
+        let mut size = self.len();
+        let mut left = 0;
+        let mut right = size;
+        while left < right {
+            let mid = left + size / 2;
+
+            // safety: like the core algorithm, mid is always within original vector len; in
+            // pathlogical cases, user could push to the vector in the meantime, but this can only
+            // increase the length, keeping this safe
+            let cmp = f(unsafe { self.get_unchecked(mid) });
+
+            if cmp == Ordering::Less {
+                left = mid + 1;
+            } else if cmp == Ordering::Greater {
+                right = mid;
+            } else {
+                return Ok(mid);
+            }
+
+            size = right - left;
+        }
+        Err(left)
+    }
+
+    /// Binary searches this sorted vector with a key extraction function, analogous to
+    /// [slice::binary_search_by_key].
+    pub fn binary_search_by_key<'a, B, F>(&'a self, b: &B, mut f: F) -> Result<usize, usize>
+    where
+        F: FnMut(&'a T::Target) -> B,
+        B: Ord,
+    {
+        self.binary_search_by(|k| f(k).cmp(b))
+    }
+
+    /// Returns the index of the partition point according to the given predicate
+    /// (the index of the first element of the second partition), analogous to
+    /// [slice::partition_point].
+    pub fn partition_point<P>(&self, mut pred: P) -> usize
+    where
+        P: FnMut(&T::Target) -> bool,
+    {
+        let mut left = 0;
+        let mut right = self.len();
+
+        while left != right {
+            let mid = left + (right - left) / 2;
+            // safety: like in binary_search_by
+            let value = unsafe { self.get_unchecked(mid) };
+            if pred(value) {
+                left = mid + 1;
+            } else {
+                right = mid;
+            }
+        }
+
+        left
     }
 
     // TODO add more
@@ -199,4 +282,22 @@ fn test_accessors() {
     assert_eq!(vec.first(), Some("a"));
     assert_eq!(vec.last(), Some("c"));
     assert_eq!(vec.get(1), Some("b"));
+}
+
+#[test]
+fn test_binary_search() {
+    let vec: FrozenVec<_> = vec!["ab", "cde", "fghij"].into();
+
+    assert_eq!(vec.binary_search("cde"), Ok(1));
+    assert_eq!(vec.binary_search("cdf"), Err(2));
+    assert_eq!(vec.binary_search("a"), Err(0));
+    assert_eq!(vec.binary_search("g"), Err(3));
+
+    assert_eq!(vec.binary_search_by_key(&1, |x| x.len()), Err(0));
+    assert_eq!(vec.binary_search_by_key(&3, |x| x.len()), Ok(1));
+    assert_eq!(vec.binary_search_by_key(&4, |x| x.len()), Err(2));
+
+    assert_eq!(vec.partition_point(|x| x.len() < 4), 2);
+    assert_eq!(vec.partition_point(|_| false), 0);
+    assert_eq!(vec.partition_point(|_| true), 3);
 }
