@@ -54,6 +54,10 @@ impl<T: StableDeref> FrozenVec<T> {
     }
 
     /// Returns a reference to an element, without doing bounds checking.
+    ///
+    /// ## Safety
+    ///
+    /// `index` must be in bounds, i.e. it must be less than `self.len()`
     pub unsafe fn get_unchecked(&self, index: usize) -> &T::Target {
         let vec = self.vec.get();
         &**(*vec).get_unchecked(index)
