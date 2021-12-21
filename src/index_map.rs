@@ -90,6 +90,20 @@ impl<K: Eq + Hash, V: StableDeref> FrozenIndexMap<K, V> {
         ret
     }
 
+    pub fn get_index(&self, index: usize) -> Option<(&K::Target, &V::Target)>
+    where
+        V: StableDeref,
+    {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let ret = unsafe {
+            let map = self.map.get();
+            (*map).get_index(index).map(|(k, v)| (&**k, &**v))
+        };
+        self.in_use.set(false);
+        ret
+    }
+
     /// Applies a function to the owner of the value corresponding to the key (if any).
     ///
     /// The key may be any borrowed form of the map's key type, but
