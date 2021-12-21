@@ -92,7 +92,7 @@ impl<K: Eq + Hash, V: StableDeref> FrozenIndexMap<K, V> {
 
     pub fn get_index(&self, index: usize) -> Option<(&K::Target, &V::Target)>
     where
-        V: StableDeref,
+        K: StableDeref,
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
