@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 use std::cell::{Cell, UnsafeCell};
-use std::hash::Hash;
+use std::collections::hash_map::RandomState;
+use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::Index;
 
@@ -9,8 +10,8 @@ use stable_deref_trait::StableDeref;
 
 /// Append-only version of `indexmap::IndexMap` where
 /// insertion does not require mutable access
-pub struct FrozenIndexMap<K, V> {
-    map: UnsafeCell<IndexMap<K, V>>,
+pub struct FrozenIndexMap<K, V, S = RandomState> {
+    map: UnsafeCell<IndexMap<K, V, S>>,
     /// Eq/Hash implementations can have side-effects, and using Rc it is possible
     /// for FrozenIndexMap::insert to be called on a key that itself contains the same
     /// `FrozenIndexMap`, whose `eq` implementation also calls FrozenIndexMap::insert
@@ -30,7 +31,7 @@ impl<K: Eq + Hash, V> FrozenIndexMap<K, V> {
     }
 }
 
-impl<K: Eq + Hash, V: StableDeref> FrozenIndexMap<K, V> {
+impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     // these should never return &K or &V
     // these should never delete any entries
     pub fn insert(&self, k: K, v: V) -> &V::Target {
@@ -136,7 +137,7 @@ impl<K: Eq + Hash, V: StableDeref> FrozenIndexMap<K, V> {
         ret
     }
 
-    pub fn into_map(self) -> IndexMap<K, V> {
+    pub fn into_map(self) -> IndexMap<K, V, S> {
         self.map.into_inner()
     }
 
@@ -144,7 +145,7 @@ impl<K: Eq + Hash, V: StableDeref> FrozenIndexMap<K, V> {
     ///
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using
     /// the 'frozen' contents.
-    pub fn as_mut(&mut self) -> &mut IndexMap<K, V> {
+    pub fn as_mut(&mut self) -> &mut IndexMap<K, V, S> {
         unsafe { &mut *self.map.get() }
     }
 
@@ -161,8 +162,8 @@ impl<K: Eq + Hash, V: StableDeref> FrozenIndexMap<K, V> {
     }
 }
 
-impl<K, V> From<IndexMap<K, V>> for FrozenIndexMap<K, V> {
-    fn from(map: IndexMap<K, V>) -> Self {
+impl<K, V, S> From<IndexMap<K, V, S>> for FrozenIndexMap<K, V, S> {
+    fn from(map: IndexMap<K, V, S>) -> Self {
         Self {
             map: UnsafeCell::new(map),
             in_use: Cell::new(false),
@@ -170,7 +171,7 @@ impl<K, V> From<IndexMap<K, V>> for FrozenIndexMap<K, V> {
     }
 }
 
-impl<K: Eq + Hash, V: StableDeref> Index<K> for FrozenIndexMap<K, V> {
+impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> Index<K> for FrozenIndexMap<K, V, S> {
     type Output = V::Target;
     fn index(&self, idx: K) -> &V::Target {
         self.get(&idx)
@@ -178,18 +179,21 @@ impl<K: Eq + Hash, V: StableDeref> Index<K> for FrozenIndexMap<K, V> {
     }
 }
 
-impl<K: Eq + Hash, V> FromIterator<(K, V)> for FrozenIndexMap<K, V> {
+impl<K: Eq + Hash, V, S: BuildHasher + Default> FromIterator<(K, V)> for FrozenIndexMap<K, V, S> {
     fn from_iter<T>(iter: T) -> Self
     where
         T: IntoIterator<Item = (K, V)>,
     {
-        let map: IndexMap<_, _> = iter.into_iter().collect();
+        let map: IndexMap<_, _, _> = iter.into_iter().collect();
         map.into()
     }
 }
 
-impl<K: Eq + Hash, V> Default for FrozenIndexMap<K, V> {
+impl<K: Eq + Hash, V, S: Default> Default for FrozenIndexMap<K, V, S> {
     fn default() -> Self {
-        FrozenIndexMap::new()
+        Self {
+            map: UnsafeCell::new(Default::default()),
+            in_use: Cell::new(false),
+        }
     }
 }
