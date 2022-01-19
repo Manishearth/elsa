@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 use std::cell::{Cell, UnsafeCell};
-use std::hash::Hash;
+use std::collections::hash_map::RandomState;
+use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::Index;
 
@@ -9,8 +10,8 @@ use stable_deref_trait::StableDeref;
 
 /// Append-only version of `indexmap::IndexSet` where
 /// insertion does not require mutable access
-pub struct FrozenIndexSet<T> {
-    set: UnsafeCell<IndexSet<T>>,
+pub struct FrozenIndexSet<T, S = RandomState> {
+    set: UnsafeCell<IndexSet<T, S>>,
     /// Eq/Hash implementations can have side-effects, and using Rc it is possible
     /// for FrozenIndexSet::insert to be called on a key that itself contains the same
     /// `FrozenIndexSet`, whose `eq` implementation also calls FrozenIndexSet::insert
@@ -23,14 +24,11 @@ pub struct FrozenIndexSet<T> {
 
 impl<T: Eq + Hash> FrozenIndexSet<T> {
     pub fn new() -> Self {
-        Self {
-            set: UnsafeCell::new(Default::default()),
-            in_use: Cell::new(false),
-        }
+        Self::from(IndexSet::new())
     }
 }
 
-impl<T: Eq + Hash + StableDeref> FrozenIndexSet<T> {
+impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     // these should never return &T
     // these should never delete any entries
     pub fn insert(&self, value: T) -> &T::Target {
@@ -127,7 +125,7 @@ impl<T: Eq + Hash + StableDeref> FrozenIndexSet<T> {
         ret
     }
 
-    pub fn into_set(self) -> IndexSet<T> {
+    pub fn into_set(self) -> IndexSet<T, S> {
         self.set.into_inner()
     }
 
@@ -135,15 +133,15 @@ impl<T: Eq + Hash + StableDeref> FrozenIndexSet<T> {
     ///
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using
     /// the 'frozen' contents.
-    pub fn as_mut(&mut self) -> &mut IndexSet<T> {
+    pub fn as_mut(&mut self) -> &mut IndexSet<T, S> {
         unsafe { &mut *self.set.get() }
     }
 
     // TODO add more
 }
 
-impl<T> From<IndexSet<T>> for FrozenIndexSet<T> {
-    fn from(set: IndexSet<T>) -> Self {
+impl<T, S> From<IndexSet<T, S>> for FrozenIndexSet<T, S> {
+    fn from(set: IndexSet<T, S>) -> Self {
         Self {
             set: UnsafeCell::new(set),
             in_use: Cell::new(false),
@@ -151,7 +149,7 @@ impl<T> From<IndexSet<T>> for FrozenIndexSet<T> {
     }
 }
 
-impl<T: Eq + Hash + StableDeref> Index<usize> for FrozenIndexSet<T> {
+impl<T: Eq + Hash + StableDeref, S> Index<usize> for FrozenIndexSet<T, S> {
     type Output = T::Target;
     fn index(&self, idx: usize) -> &T::Target {
         assert!(!self.in_use.get());
@@ -165,18 +163,18 @@ impl<T: Eq + Hash + StableDeref> Index<usize> for FrozenIndexSet<T> {
     }
 }
 
-impl<T: Eq + Hash> FromIterator<T> for FrozenIndexSet<T> {
+impl<T: Eq + Hash, S: Default + BuildHasher> FromIterator<T> for FrozenIndexSet<T, S> {
     fn from_iter<U>(iter: U) -> Self
     where
         U: IntoIterator<Item = T>,
     {
-        let set: IndexSet<_> = iter.into_iter().collect();
+        let set: IndexSet<_, _> = iter.into_iter().collect();
         set.into()
     }
 }
 
-impl<T: Eq + Hash> Default for FrozenIndexSet<T> {
+impl<T: Eq + Hash, S: Default> Default for FrozenIndexSet<T, S> {
     fn default() -> Self {
-        FrozenIndexSet::new()
+        Self::from(IndexSet::default())
     }
 }
