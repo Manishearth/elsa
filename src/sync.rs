@@ -123,6 +123,28 @@ impl<T: StableDeref> FrozenVec<T> {
         unsafe { &*(&**vec.get_unchecked(vec.len() - 1) as *const T::Target) }
     }
 
+    /// Push, immediately getting a an index of the element
+    ///
+    /// Index can then be used with the `get` method
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenVec;
+    ///
+    /// let map = FrozenVec::new();
+    /// let idx = map.push_get_index(String::from("a"));
+    /// assert_eq!(map.get(idx), Some("a"));
+    /// assert_eq!(idx, 0);
+    /// assert_eq!(map.push_get_index(String::from("b")), 1);
+    /// ```
+    pub fn push_get_index(&self, val: T) -> usize {
+        let mut vec = self.vec.write().unwrap();
+        let index = vec.len();
+        vec.push(val);
+        return index;
+    }
+
     pub fn get(&self, index: usize) -> Option<&T::Target> {
         let vec = self.vec.read().unwrap();
         unsafe { vec.get(index).map(|x| &*(&**x as *const T::Target)) }
