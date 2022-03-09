@@ -20,7 +20,7 @@ pub mod index_set;
 
 pub mod sync;
 
-pub use map::FrozenMap;
+pub use map::{FrozenBTreeMap, FrozenMap};
 pub use vec::FrozenVec;
 
 #[cfg(feature = "indexmap")]

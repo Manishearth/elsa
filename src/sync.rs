@@ -194,21 +194,7 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
         ret
     }
 
-    pub fn insert(&self, k: K, v: V) -> &V::Target {
-        let mut map = self.0.write().unwrap();
-        let ret = unsafe {
-            let inserted = &**map.entry(k).or_insert(v);
-            &*(inserted as *const _)
-        };
-        ret
-    }
-
-    /// Gets the item for the given key, or, if it doesn't exist, uses
-    /// the closure to create, insert, and return a reference to it.
-    ///
-    /// The key may be any borrowed form of the map's key type, but
-    /// [`Ord`] on the borrowed form *must* match those for
-    /// the key type.
+    /// Insert a new value into the map. Does nothing if the key is already occupied.
     ///
     /// # Examples
     ///
@@ -216,35 +202,16 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     /// use elsa::sync::FrozenBTreeMap;
     ///
     /// let map = FrozenBTreeMap::new();
-    /// assert_eq!(map.get_or_insert(&1, || -> Result<String,()> { Ok(String::from("a")) }), Ok("a"));
-    /// assert_eq!(map.get_or_insert(&1, || -> Result<String,()> { panic!() }), Ok("a"));
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map.get(&1), Some(&"a"));
     /// ```
-    pub fn get_or_insert<'a, E>(
-        &'a self,
-        k: &K,
-        value_fn: impl FnOnce() -> Result<V, E>,
-    ) -> Result<&'a V::Target, E> {
-        // The RHS of an if-let statement doesn't get dropped before the else block, so we have
-        // to do this manually
-        let guard = self.0.read().unwrap();
-        let ptr = if let Some(x) = guard.get(k) {
-            &**x as *const V::Target
-        } else {
-            drop(guard);
-
-            // We compute the value outside the or_insert_with because
-            // * it can fail
-            // * we don't want to hold the lock while computing it
-            let value = value_fn()?;
-
-            let mut guard = self.0.write().unwrap();
-            // highly important for the closure to be called during the guard only
-            &**guard.entry(k.clone()).or_insert_with(|| value) as *const V::Target
+    pub fn insert(&self, k: K, v: V) -> &V::Target {
+        let mut map = self.0.write().unwrap();
+        let ret = unsafe {
+            let inserted = &**map.entry(k).or_insert(v);
+            &*(inserted as *const _)
         };
-
-        // Even though we've given up the lock on it, the value is still there
-        // because V is a stable reference and we never drop anything.
-        Ok(unsafe { &*ptr })
+        ret
     }
 
     /// Applies a function to the owner of the value corresponding to the key (if any).
