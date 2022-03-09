@@ -6,12 +6,13 @@
 //! These lock internally, however locks only last as long as the method calls
 //!
 
+use stable_deref_trait::StableDeref;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::hash::Hash;
-
-use stable_deref_trait::StableDeref;
+use std::iter::{FromIterator, IntoIterator};
+use std::ops::Index;
 
 use std::sync::RwLock;
 
@@ -157,15 +158,57 @@ impl<T: StableDeref> FrozenVec<T> {
 /// Append-only threadsafe version of `std::collections::BTreeMap` where
 /// insertion does not require mutable access
 #[derive(Debug)]
-pub struct FrozenBTreeMap<K: Clone + Ord, V: StableDeref>(RwLock<BTreeMap<K, V>>);
+pub struct FrozenBTreeMap<K, V>(RwLock<BTreeMap<K, V>>);
 
 impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     pub fn new() -> Self {
         Self(RwLock::new(BTreeMap::new()))
     }
 
+    // these should never return &K or &V
+    // these should never delete any entries
+
+    /// Returns a reference to the value corresponding to the key.
+    ///
+    /// The key may be any borrowed form of the map's key type, but
+    /// [`Ord`] on the borrowed form *must* match those for
+    /// the key type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenBTreeMap;
+    ///
+    /// let map = FrozenBTreeMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map.get(&1), Some(&"a"));
+    /// assert_eq!(map.get(&2), None);
+    /// ```
+    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V::Target>
+    where
+        K: Borrow<Q>,
+        Q: Ord,
+    {
+        let map = self.0.read().unwrap();
+        let ret = unsafe { map.get(k).map(|x| &*(&**x as *const V::Target)) };
+        ret
+    }
+
+    pub fn insert(&self, k: K, v: V) -> &V::Target {
+        let mut map = self.0.write().unwrap();
+        let ret = unsafe {
+            let inserted = &**map.entry(k).or_insert(v);
+            &*(inserted as *const _)
+        };
+        ret
+    }
+
     /// Gets the item for the given key, or, if it doesn't exist, uses
     /// the closure to create, insert, and return a reference to it.
+    ///
+    /// The key may be any borrowed form of the map's key type, but
+    /// [`Ord`] on the borrowed form *must* match those for
+    /// the key type.
     ///
     /// # Examples
     ///
@@ -195,12 +238,69 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
             let value = value_fn()?;
 
             let mut guard = self.0.write().unwrap();
-
+            // highly important for the closure to be called during the guard only
             &**guard.entry(k.clone()).or_insert_with(|| value) as *const V::Target
         };
 
         // Even though we've given up the lock on it, the value is still there
         // because V is a stable reference and we never drop anything.
         Ok(unsafe { &*ptr })
+    }
+
+    /// Applies a function to the owner of the value corresponding to the key (if any).
+    ///
+    /// The key may be any borrowed form of the map's key type, but
+    /// [`Ord`] on the borrowed form *must* match those for
+    /// the key type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenBTreeMap;
+    ///
+    /// let map = FrozenBTreeMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map.map_get(&1, Clone::clone), Some(Box::new("a")));
+    /// assert_eq!(map.map_get(&2, Clone::clone), None);
+    /// ```
+    pub fn map_get<Q: ?Sized, T, F>(&self, k: &Q, f: F) -> Option<T>
+    where
+        K: Borrow<Q>,
+        Q: Ord,
+        F: FnOnce(&V) -> T,
+    {
+        let map = self.0.read().unwrap();
+        let ret = map.get(k).map(f);
+        ret
+    }
+}
+
+impl<K: Clone + Ord, V: StableDeref> From<BTreeMap<K, V>> for FrozenBTreeMap<K, V> {
+    fn from(map: BTreeMap<K, V>) -> Self {
+        Self(RwLock::new(map))
+    }
+}
+
+impl<K: Clone + Ord, V: StableDeref> Index<K> for FrozenBTreeMap<K, V> {
+    type Output = V::Target;
+    fn index(&self, idx: K) -> &V::Target {
+        self.get(&idx)
+            .expect("attempted to index FrozenBTreeMap with unknown key")
+    }
+}
+
+impl<K: Clone + Ord, V: StableDeref> FromIterator<(K, V)> for FrozenBTreeMap<K, V> {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = (K, V)>,
+    {
+        let map: BTreeMap<_, _> = iter.into_iter().collect();
+        map.into()
+    }
+}
+
+impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
+    fn default() -> Self {
+        Self::new()
     }
 }
