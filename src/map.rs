@@ -30,6 +30,27 @@ impl<K: Eq + Hash, V> FrozenMap<K, V> {
             in_use: Cell::new(false),
         }
     }
+
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// assert_eq!(map.len(), 0);
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map.len(), 1);
+    /// ```
+    pub fn len(&self) -> usize {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let len = unsafe {
+            let map = self.map.get();
+            (*map).len()
+        };
+        self.in_use.set(false);
+        len
+    }
 }
 
 impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
@@ -196,6 +217,27 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
             map: UnsafeCell::new(Default::default()),
             in_use: Cell::new(false),
         }
+    }
+
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenBTreeMap;
+    ///
+    /// let map = FrozenBTreeMap::new();
+    /// assert_eq!(map.len(), 0);
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map.len(), 1);
+    /// ```
+    pub fn len(&self) -> usize {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let len = unsafe {
+            let map = self.map.get();
+            (*map).len()
+        };
+        self.in_use.set(false);
+        len
     }
 }
 
