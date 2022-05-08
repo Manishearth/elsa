@@ -133,10 +133,26 @@ impl<K, V, S> From<HashMap<K, V, S>> for FrozenMap<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> Index<K> for FrozenMap<K, V, S> {
+impl<Q: ?Sized, K, V, S> Index<&Q> for FrozenMap<K, V, S>
+    where
+        Q: Eq + Hash,
+        K: Eq + Hash + Borrow<Q>,
+        V: StableDeref,
+        S: BuildHasher
+{
     type Output = V::Target;
-    fn index(&self, idx: K) -> &V::Target {
-        self.get(&idx)
+
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map[&1], "a");
+    /// ```
+    fn index(&self, idx: &Q) -> &V::Target {
+        self.get(idx)
             .expect("attempted to index FrozenMap with unknown key")
     }
 }
@@ -284,10 +300,25 @@ impl<K: Clone + Ord, V: StableDeref> From<BTreeMap<K, V>> for FrozenBTreeMap<K, 
     }
 }
 
-impl<K: Clone + Ord, V: StableDeref> Index<K> for FrozenBTreeMap<K, V> {
+impl<Q: ?Sized, K, V> Index<&Q> for FrozenBTreeMap<K, V>
+    where
+        Q: Ord,
+        K: Clone + Ord + Borrow<Q>,
+        V: StableDeref
+{
     type Output = V::Target;
-    fn index(&self, idx: K) -> &V::Target {
-        self.get(&idx)
+
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenBTreeMap;
+    ///
+    /// let map = FrozenBTreeMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map[&1], "a");
+    /// ```
+    fn index(&self, idx: &Q) -> &V::Target {
+        self.get(idx)
             .expect("attempted to index FrozenBTreeMap with unknown key")
     }
 }

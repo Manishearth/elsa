@@ -171,9 +171,25 @@ impl<K, V, S> From<IndexMap<K, V, S>> for FrozenIndexMap<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> Index<K> for FrozenIndexMap<K, V, S> {
+impl<Q: ?Sized, K: Eq + Hash, V: StableDeref, S: BuildHasher> Index<&Q> for FrozenIndexMap<K, V, S>
+    where
+        Q: Eq + Hash,
+        K: Eq + Hash + Borrow<Q>,
+        V: StableDeref,
+        S: BuildHasher
+{
     type Output = V::Target;
-    fn index(&self, idx: K) -> &V::Target {
+
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenIndexMap;
+    ///
+    /// let map = FrozenIndexMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map[&1], "a");
+    /// ```
+    fn index(&self, idx: &Q) -> &V::Target {
         self.get(&idx)
             .expect("attempted to index FrozenIndexMap with unknown key")
     }

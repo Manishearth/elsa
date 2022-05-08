@@ -248,10 +248,25 @@ impl<K: Clone + Ord, V: StableDeref> From<BTreeMap<K, V>> for FrozenBTreeMap<K, 
     }
 }
 
-impl<K: Clone + Ord, V: StableDeref> Index<K> for FrozenBTreeMap<K, V> {
+impl<Q: ?Sized, K, V> Index<&Q> for FrozenBTreeMap<K, V>
+    where
+        Q: Ord,
+        K: Clone + Ord + Borrow<Q>,
+        V: StableDeref
+{
     type Output = V::Target;
-    fn index(&self, idx: K) -> &V::Target {
-        self.get(&idx)
+
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenBTreeMap;
+    ///
+    /// let map = FrozenBTreeMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map[&1], "a");
+    /// ```
+    fn index(&self, idx: &Q) -> &V::Target {
+        self.get(idx)
             .expect("attempted to index FrozenBTreeMap with unknown key")
     }
 }
