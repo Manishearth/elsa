@@ -30,16 +30,16 @@ impl<T: StableDeref> FrozenVec<T> {
 
     /// Appends an element to the back of the vector.
     pub fn push(&self, val: T) {
+        let vec = self.vec.get();
         unsafe {
-            let vec = self.vec.get();
             (*vec).push(val)
         }
     }
 
     /// Push, immediately getting a reference to the element
     pub fn push_get(&self, val: T) -> &T::Target {
+        let vec = self.vec.get();
         unsafe {
-            let vec = self.vec.get();
             (*vec).push(val);
             &*(&**(*vec).get_unchecked((*vec).len() - 1) as *const T::Target)
         }
@@ -47,8 +47,8 @@ impl<T: StableDeref> FrozenVec<T> {
 
     /// Returns a reference to an element.
     pub fn get(&self, index: usize) -> Option<&T::Target> {
+        let vec = self.vec.get();
         unsafe {
-            let vec = self.vec.get();
             (*vec).get(index).map(|x| &**x)
         }
     }
@@ -65,8 +65,8 @@ impl<T: StableDeref> FrozenVec<T> {
 
     /// Returns the number of elements in the vector.
     pub fn len(&self) -> usize {
+        let vec = self.vec.get();
         unsafe {
-            let vec = self.vec.get();
             (*vec).len()
         }
     }
@@ -78,16 +78,16 @@ impl<T: StableDeref> FrozenVec<T> {
 
     /// Returns the first element of the vector, or `None` if empty.
     pub fn first(&self) -> Option<&T::Target> {
+        let vec = self.vec.get();
         unsafe {
-            let vec = self.vec.get();
             (*vec).first().map(|x| &**x)
         }
     }
 
     /// Returns the last element of the vector, or `None` if empty.
     pub fn last(&self) -> Option<&T::Target> {
+        let vec = self.vec.get();
         unsafe {
-            let vec = self.vec.get();
             (*vec).last().map(|x| &**x)
         }
     }

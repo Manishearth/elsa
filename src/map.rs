@@ -44,9 +44,9 @@ impl<K: Eq + Hash, V> FrozenMap<K, V> {
     pub fn len(&self) -> usize {
         assert!(!self.in_use.get());
         self.in_use.set(true);
-        let len = unsafe {
+        let len = {
             let map = self.map.get();
-            (*map).len()
+            unsafe {(*map).len()}
         };
         self.in_use.set(false);
         len
@@ -59,9 +59,9 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
     pub fn insert(&self, k: K, v: V) -> &V::Target {
         assert!(!self.in_use.get());
         self.in_use.set(true);
-        let ret = unsafe {
+        let ret = {
             let map = self.map.get();
-            &*(*map).entry(k).or_insert(v)
+            unsafe {&*(*map).entry(k).or_insert(v)}
         };
         self.in_use.set(false);
         ret
@@ -90,9 +90,9 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
-        let ret = unsafe {
+        let ret = {
             let map = self.map.get();
-            (*map).get(k).map(|x| &**x)
+            unsafe {(*map).get(k).map(|x| &**x)}
         };
         self.in_use.set(false);
         ret
@@ -122,9 +122,9 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
-        let ret = unsafe {
+        let ret = {
             let map = self.map.get();
-            (*map).get(k).map(f)
+            unsafe  {(*map).get(k).map(f)}
         };
         self.in_use.set(false);
         ret
@@ -232,9 +232,9 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     pub fn len(&self) -> usize {
         assert!(!self.in_use.get());
         self.in_use.set(true);
-        let len = unsafe {
+        let len = {
             let map = self.map.get();
-            (*map).len()
+            unsafe {(*map).len()}
         };
         self.in_use.set(false);
         len
@@ -247,9 +247,9 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     pub fn insert(&self, k: K, v: V) -> &V::Target {
         assert!(!self.in_use.get());
         self.in_use.set(true);
-        let ret = unsafe {
+        let ret = {
             let map = self.map.get();
-            &*(*map).entry(k).or_insert(v)
+            unsafe {&*(*map).entry(k).or_insert(v)}
         };
         self.in_use.set(false);
         ret
@@ -278,9 +278,9 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
-        let ret = unsafe {
+        let ret = {
             let map = self.map.get();
-            (*map).get(k).map(|x| &**x)
+            unsafe {(*map).get(k).map(|x| &**x)}
         };
         self.in_use.set(false);
         ret
