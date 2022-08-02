@@ -11,6 +11,7 @@ use stable_deref_trait::StableDeref;
 
 /// Append-only version of `std::collections::HashMap` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 pub struct FrozenMap<K, V, S = RandomState> {
     map: UnsafeCell<HashMap<K, V, S>>,
     /// Eq/Hash implementations can have side-effects, and using Rc it is possible
@@ -155,11 +156,11 @@ impl<K, V, S> From<HashMap<K, V, S>> for FrozenMap<K, V, S> {
 }
 
 impl<Q: ?Sized, K, V, S> Index<&Q> for FrozenMap<K, V, S>
-    where
-        Q: Eq + Hash,
-        K: Eq + Hash + Borrow<Q>,
-        V: StableDeref,
-        S: BuildHasher
+where
+    Q: Eq + Hash,
+    K: Eq + Hash + Borrow<Q>,
+    V: StableDeref,
+    S: BuildHasher,
 {
     type Output = V::Target;
 
@@ -343,10 +344,10 @@ impl<K: Clone + Ord, V: StableDeref> From<BTreeMap<K, V>> for FrozenBTreeMap<K, 
 }
 
 impl<Q: ?Sized, K, V> Index<&Q> for FrozenBTreeMap<K, V>
-    where
-        Q: Ord,
-        K: Clone + Ord + Borrow<Q>,
-        V: StableDeref
+where
+    Q: Ord,
+    K: Clone + Ord + Borrow<Q>,
+    V: StableDeref,
 {
     type Output = V::Target;
 

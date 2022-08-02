@@ -10,6 +10,7 @@ use stable_deref_trait::StableDeref;
 
 /// Append-only version of `indexmap::IndexMap` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 pub struct FrozenIndexMap<K, V, S = RandomState> {
     map: UnsafeCell<IndexMap<K, V, S>>,
     /// Eq/Hash implementations can have side-effects, and using Rc it is possible
@@ -172,11 +173,11 @@ impl<K, V, S> From<IndexMap<K, V, S>> for FrozenIndexMap<K, V, S> {
 }
 
 impl<Q: ?Sized, K: Eq + Hash, V: StableDeref, S: BuildHasher> Index<&Q> for FrozenIndexMap<K, V, S>
-    where
-        Q: Eq + Hash,
-        K: Eq + Hash + Borrow<Q>,
-        V: StableDeref,
-        S: BuildHasher
+where
+    Q: Eq + Hash,
+    K: Eq + Hash + Borrow<Q>,
+    V: StableDeref,
+    S: BuildHasher,
 {
     type Output = V::Target;
 

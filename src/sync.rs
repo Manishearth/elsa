@@ -18,6 +18,7 @@ use std::sync::RwLock;
 
 /// Append-only threadsafe version of `std::collections::HashMap` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 pub struct FrozenMap<K, V> {
     map: RwLock<HashMap<K, V>>,
 }
@@ -279,10 +280,10 @@ impl<K: Clone + Ord, V: StableDeref> From<BTreeMap<K, V>> for FrozenBTreeMap<K, 
 }
 
 impl<Q: ?Sized, K, V> Index<&Q> for FrozenBTreeMap<K, V>
-    where
-        Q: Ord,
-        K: Clone + Ord + Borrow<Q>,
-        V: StableDeref
+where
+    Q: Ord,
+    K: Clone + Ord + Borrow<Q>,
+    V: StableDeref,
 {
     type Output = V::Target;
 
