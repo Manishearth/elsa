@@ -145,6 +145,40 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
     // TODO add more
 }
 
+impl<K: Eq + Hash + StableDeref, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
+    /// Returns a reference to the key and value matching a borrowed
+    /// key.
+    ///
+    /// The key argument may be any borrowed form of the map's key type,
+    /// but [`Hash`] and [`Eq`] on the borrowed form *must* match those
+    /// for the key type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// map.insert(Box::new("1"), Box::new("a"));
+    /// assert_eq!(map.get_key_value(&"1"), Some((&"1", &"a")));
+    /// assert_eq!(map.get_key_value(&"2"), None);
+    /// ```
+    pub fn get_key_value<Q: ?Sized>(&self, k: &Q) -> Option<(&K::Target, &V::Target)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let ret = unsafe {
+            let map = self.map.get();
+            (*map).get_key_value(k).map(|(k, v)| (&**k, &**v))
+        };
+        self.in_use.set(false);
+        ret
+    }
+}
+
 impl<K, V, S> From<HashMap<K, V, S>> for FrozenMap<K, V, S> {
     fn from(map: HashMap<K, V, S>) -> Self {
         Self {
