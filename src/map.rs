@@ -51,6 +51,20 @@ impl<K: Eq + Hash, V> FrozenMap<K, V> {
         self.in_use.set(false);
         len
     }
+
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// assert_eq!(map.is_empty(), true);
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map.is_empty(), false);
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
@@ -189,11 +203,11 @@ impl<K, V, S> From<HashMap<K, V, S>> for FrozenMap<K, V, S> {
 }
 
 impl<Q: ?Sized, K, V, S> Index<&Q> for FrozenMap<K, V, S>
-    where
-        Q: Eq + Hash,
-        K: Eq + Hash + Borrow<Q>,
-        V: StableDeref,
-        S: BuildHasher
+where
+    Q: Eq + Hash,
+    K: Eq + Hash + Borrow<Q>,
+    V: StableDeref,
+    S: BuildHasher,
 {
     type Output = V::Target;
 
@@ -272,6 +286,20 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
         };
         self.in_use.set(false);
         len
+    }
+
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenBTreeMap;
+    ///
+    /// let map = FrozenBTreeMap::new();
+    /// assert_eq!(map.is_empty(), true);
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map.is_empty(), false);
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -377,10 +405,10 @@ impl<K: Clone + Ord, V: StableDeref> From<BTreeMap<K, V>> for FrozenBTreeMap<K, 
 }
 
 impl<Q: ?Sized, K, V> Index<&Q> for FrozenBTreeMap<K, V>
-    where
-        Q: Ord,
-        K: Clone + Ord + Borrow<Q>,
-        V: StableDeref
+where
+    Q: Ord,
+    K: Clone + Ord + Borrow<Q>,
+    V: StableDeref,
 {
     type Output = V::Target;
 
