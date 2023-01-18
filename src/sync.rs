@@ -22,16 +22,42 @@ pub struct FrozenMap<K, V> {
     map: RwLock<HashMap<K, V>>,
 }
 
+impl<K, V> Default for FrozenMap<K, V> {
+    fn default() -> Self {
+        Self {
+            map: Default::default(),
+        }
+    }
+}
+
 impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     // these should never return &K or &V
     // these should never delete any entries
 
     pub fn new() -> Self {
-        Self {
-            map: RwLock::new(Default::default()),
-        }
+        Self::default()
     }
 
+    /// If the key exists in the map, returns a reference
+    /// to the corresponding value, otherwise inserts a
+    /// new entry in the map for that key and returns a
+    /// reference to the given value.
+    ///
+    /// Existing values are never overwritten.
+    ///
+    /// The key may be any borrowed form of the map's key type, but
+    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
+    /// the key type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// assert_eq!(map.insert(1, Box::new("a")), &"a");
+    /// assert_eq!(map.insert(1, Box::new("b")), &"a");
+    /// ```
     pub fn insert(&self, k: K, v: V) -> &V::Target {
         let mut map = self.map.write().unwrap();
         let ret = unsafe {
@@ -118,11 +144,17 @@ pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
 }
 
+impl<T> Default for FrozenVec<T> {
+    fn default() -> Self {
+        Self {
+            vec: Default::default(),
+        }
+    }
+}
+
 impl<T: StableDeref> FrozenVec<T> {
     pub fn new() -> Self {
-        Self {
-            vec: RwLock::new(Default::default()),
-        }
+        Default::default()
     }
 
     // these should never return &T
@@ -279,10 +311,10 @@ impl<K: Clone + Ord, V: StableDeref> From<BTreeMap<K, V>> for FrozenBTreeMap<K, 
 }
 
 impl<Q: ?Sized, K, V> Index<&Q> for FrozenBTreeMap<K, V>
-    where
-        Q: Ord,
-        K: Clone + Ord + Borrow<Q>,
-        V: StableDeref
+where
+    Q: Ord,
+    K: Clone + Ord + Borrow<Q>,
+    V: StableDeref,
 {
     type Output = V::Target;
 
