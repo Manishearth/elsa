@@ -67,6 +67,66 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         ret
     }
 
+    /// If the key exists in the map, returns a reference
+    /// to the corresponding value, otherwise inserts a
+    /// new entry in the map for that key and the value
+    /// returned by the creation function, and returns a
+    /// reference to the generated value.
+    ///
+    /// Existing values are never overwritten.
+    ///
+    /// The key may be any borrowed form of the map's key type, but
+    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
+    /// the key type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// assert_eq!(map.insert_with(1, || Box::new("a")), &"a");
+    /// assert_eq!(map.insert_with(1, || unreachable!()), &"a");
+    /// ```
+    pub fn insert_with(&self, k: K, f: impl FnOnce() -> V) -> &V::Target {
+        let mut map = self.map.write().unwrap();
+        let ret = unsafe {
+            let inserted = &**map.entry(k).or_insert_with(f);
+            &*(inserted as *const _)
+        };
+        ret
+    }
+
+    /// If the key exists in the map, returns a reference
+    /// to the corresponding value, otherwise inserts a
+    /// new entry in the map for that key and the value
+    /// returned by the creation function, and returns a
+    /// reference to the generated value.
+    ///
+    /// Existing values are never overwritten.
+    ///
+    /// The key may be any borrowed form of the map's key type, but
+    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
+    /// the key type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// assert_eq!(map.insert_with_key(1, |_| Box::new("a")), &"a");
+    /// assert_eq!(map.insert_with_key(1, |_| unreachable!()), &"a");
+    /// ```
+    pub fn insert_with_key(&self, k: K, f: impl FnOnce(&K) -> V) -> &V::Target {
+        let mut map = self.map.write().unwrap();
+        let ret = unsafe {
+            let inserted = &**map.entry(k).or_insert_with_key(f);
+            &*(inserted as *const _)
+        };
+        ret
+    }
+
     /// Returns a reference to the value corresponding to the key.
     ///
     /// The key may be any borrowed form of the map's key type, but
