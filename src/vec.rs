@@ -24,6 +24,16 @@ impl<T> FrozenVec<T> {
     }
 }
 
+impl<T> std::convert::AsMut<Vec<T>> for FrozenVec<T> {
+    /// Get mutable access to the underlying vector.
+    ///
+    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
+    /// the 'frozen' contents.
+    fn as_mut(&mut self) -> &mut Vec<T> {
+        unsafe { &mut *self.vec.get() }
+    }
+}
+
 impl<T: StableDeref> FrozenVec<T> {
     // these should never return &T
     // these should never delete any entries
@@ -100,14 +110,6 @@ impl<T: StableDeref> FrozenVec<T> {
     /// Converts the frozen vector into a plain vector.
     pub fn into_vec(self) -> Vec<T> {
         self.vec.into_inner()
-    }
-
-    /// Get mutable access to the underlying vector.
-    ///
-    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
-    /// the 'frozen' contents.
-    pub fn as_mut(&mut self) -> &mut Vec<T> {
-        unsafe { &mut *self.vec.get() }
     }
 
     // binary search functions: they need to be reimplemented here to be safe (instead of calling

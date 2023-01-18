@@ -53,6 +53,16 @@ impl<K: Eq + Hash, V> FrozenMap<K, V> {
     }
 }
 
+impl<K, V, S> std::convert::AsMut<HashMap<K, V, S>> for FrozenMap<K, V, S> {
+    /// Get mutable access to the underlying [`HashMap`].
+    ///
+    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
+    /// the 'frozen' contents.
+    fn as_mut(&mut self) -> &mut HashMap<K, V, S> {
+        unsafe { &mut *self.map.get() }
+    }
+}
+
 impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
     // these should never return &K or &V
     // these should never delete any entries
@@ -132,14 +142,6 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
 
     pub fn into_map(self) -> HashMap<K, V, S> {
         self.map.into_inner()
-    }
-
-    /// Get mutable access to the underlying [`HashMap`].
-    ///
-    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
-    /// the 'frozen' contents.
-    pub fn as_mut(&mut self) -> &mut HashMap<K, V, S> {
-        unsafe { &mut *self.map.get() }
     }
 
     // TODO add more
@@ -275,6 +277,16 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     }
 }
 
+impl<K, V> std::convert::AsMut<BTreeMap<K, V>> for FrozenBTreeMap<K, V> {
+    /// Get mutable access to the underlying [`HashMap`].
+    ///
+    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
+    /// the 'frozen' contents.
+    fn as_mut(&mut self) -> &mut BTreeMap<K, V> {
+        unsafe { &mut *self.map.get() }
+    }
+}
+
 impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     // these should never return &K or &V
     // these should never delete any entries
@@ -354,14 +366,6 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
 
     pub fn into_map(self) -> BTreeMap<K, V> {
         self.map.into_inner()
-    }
-
-    /// Get mutable access to the underlying [`HashMap`].
-    ///
-    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
-    /// the 'frozen' contents.
-    pub fn as_mut(&mut self) -> &mut BTreeMap<K, V> {
-        unsafe { &mut *self.map.get() }
     }
 
     // TODO add more
