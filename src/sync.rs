@@ -67,17 +67,19 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         ret
     }
 
-    /// If the key exists in the map, returns a reference
-    /// to the corresponding value, otherwise inserts a
-    /// new entry in the map for that key and the value
-    /// returned by the creation function, and returns a
-    /// reference to the generated value.
+    /// If the key exists in the map, returns a reference to the corresponding
+    /// value, otherwise inserts a new entry in the map for that key and the
+    /// value returned by the creation function, and returns a reference to the
+    /// generated value.
     ///
     /// Existing values are never overwritten.
     ///
-    /// The key may be any borrowed form of the map's key type, but
-    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
-    /// the key type.
+    /// The key may be any borrowed form of the map's key type, but [`Hash`] and
+    /// [`Eq`] on the borrowed form *must* match those for the key type.
+    ///
+    /// **Note** that the write lock is held for the duration of this function’s
+    /// execution, even while the value creation function is executing (if
+    /// needed). This will block any concurrent `get` or `insert` calls.
     ///
     /// # Examples
     ///
@@ -97,17 +99,19 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         ret
     }
 
-    /// If the key exists in the map, returns a reference
-    /// to the corresponding value, otherwise inserts a
-    /// new entry in the map for that key and the value
-    /// returned by the creation function, and returns a
-    /// reference to the generated value.
+    /// If the key exists in the map, returns a reference to the corresponding
+    /// value, otherwise inserts a new entry in the map for that key and the
+    /// value returned by the creation function, and returns a reference to the
+    /// generated value.
     ///
     /// Existing values are never overwritten.
     ///
-    /// The key may be any borrowed form of the map's key type, but
-    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
-    /// the key type.
+    /// The key may be any borrowed form of the map's key type, but [`Hash`] and
+    /// [`Eq`] on the borrowed form *must* match those for the key type.
+    ///
+    /// **Note** that the write lock is held for the duration of this function’s
+    /// execution, even while the value creation function is executing (if
+    /// needed). This will block any concurrent `get` or `insert` calls.
     ///
     /// # Examples
     ///
