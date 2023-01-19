@@ -199,6 +199,21 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         map.len()
     }
 
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// assert_eq!(map.is_empty(), true);
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map.is_empty(), false);
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        let map = self.map.read().unwrap();
+        map.is_empty()
+    }
+
     // TODO add more
 }
 
@@ -365,6 +380,21 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     pub fn len(&self) -> usize {
         let map = self.0.read().unwrap();
         map.len()
+    }
+
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenBTreeMap;
+    ///
+    /// let map = FrozenBTreeMap::new();
+    /// assert_eq!(map.is_empty(), true);
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map.is_empty(), false);
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        let map = self.0.read().unwrap();
+        map.is_empty()
     }
 }
 
