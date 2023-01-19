@@ -24,16 +24,6 @@ impl<T> FrozenVec<T> {
     }
 }
 
-impl<T> std::convert::AsMut<Vec<T>> for FrozenVec<T> {
-    /// Get mutable access to the underlying vector.
-    ///
-    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
-    /// the 'frozen' contents.
-    fn as_mut(&mut self) -> &mut Vec<T> {
-        unsafe { &mut *self.vec.get() }
-    }
-}
-
 impl<T: StableDeref> FrozenVec<T> {
     // these should never return &T
     // these should never delete any entries
@@ -189,6 +179,16 @@ impl<T: StableDeref> FrozenVec<T> {
     }
 
     // TODO add more
+}
+
+impl<T> std::convert::AsMut<Vec<T>> for FrozenVec<T> {
+    /// Get mutable access to the underlying vector.
+    ///
+    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
+    /// the 'frozen' contents.
+    fn as_mut(&mut self) -> &mut Vec<T> {
+        unsafe { &mut *self.vec.get() }
+    }
 }
 
 impl<T> Default for FrozenVec<T> {

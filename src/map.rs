@@ -53,16 +53,6 @@ impl<K: Eq + Hash, V> FrozenMap<K, V> {
     }
 }
 
-impl<K, V, S> std::convert::AsMut<HashMap<K, V, S>> for FrozenMap<K, V, S> {
-    /// Get mutable access to the underlying [`HashMap`].
-    ///
-    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
-    /// the 'frozen' contents.
-    fn as_mut(&mut self) -> &mut HashMap<K, V, S> {
-        unsafe { &mut *self.map.get() }
-    }
-}
-
 impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
     // these should never return &K or &V
     // these should never delete any entries
@@ -181,6 +171,16 @@ impl<K: Eq + Hash + StableDeref, V: StableDeref, S: BuildHasher> FrozenMap<K, V,
     }
 }
 
+impl<K, V, S> std::convert::AsMut<HashMap<K, V, S>> for FrozenMap<K, V, S> {
+    /// Get mutable access to the underlying [`HashMap`].
+    ///
+    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
+    /// the 'frozen' contents.
+    fn as_mut(&mut self) -> &mut HashMap<K, V, S> {
+        unsafe { &mut *self.map.get() }
+    }
+}
+
 impl<K, V, S> From<HashMap<K, V, S>> for FrozenMap<K, V, S> {
     fn from(map: HashMap<K, V, S>) -> Self {
         Self {
@@ -191,11 +191,11 @@ impl<K, V, S> From<HashMap<K, V, S>> for FrozenMap<K, V, S> {
 }
 
 impl<Q: ?Sized, K, V, S> Index<&Q> for FrozenMap<K, V, S>
-    where
-        Q: Eq + Hash,
-        K: Eq + Hash + Borrow<Q>,
-        V: StableDeref,
-        S: BuildHasher
+where
+    Q: Eq + Hash,
+    K: Eq + Hash + Borrow<Q>,
+    V: StableDeref,
+    S: BuildHasher,
 {
     type Output = V::Target;
 
@@ -274,16 +274,6 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
         };
         self.in_use.set(false);
         len
-    }
-}
-
-impl<K, V> std::convert::AsMut<BTreeMap<K, V>> for FrozenBTreeMap<K, V> {
-    /// Get mutable access to the underlying [`HashMap`].
-    ///
-    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
-    /// the 'frozen' contents.
-    fn as_mut(&mut self) -> &mut BTreeMap<K, V> {
-        unsafe { &mut *self.map.get() }
     }
 }
 
@@ -371,6 +361,16 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     // TODO add more
 }
 
+impl<K, V> std::convert::AsMut<BTreeMap<K, V>> for FrozenBTreeMap<K, V> {
+    /// Get mutable access to the underlying [`HashMap`].
+    ///
+    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
+    /// the 'frozen' contents.
+    fn as_mut(&mut self) -> &mut BTreeMap<K, V> {
+        unsafe { &mut *self.map.get() }
+    }
+}
+
 impl<K: Clone + Ord, V: StableDeref> From<BTreeMap<K, V>> for FrozenBTreeMap<K, V> {
     fn from(map: BTreeMap<K, V>) -> Self {
         Self {
@@ -381,10 +381,10 @@ impl<K: Clone + Ord, V: StableDeref> From<BTreeMap<K, V>> for FrozenBTreeMap<K, 
 }
 
 impl<Q: ?Sized, K, V> Index<&Q> for FrozenBTreeMap<K, V>
-    where
-        Q: Ord,
-        K: Clone + Ord + Borrow<Q>,
-        V: StableDeref
+where
+    Q: Ord,
+    K: Clone + Ord + Borrow<Q>,
+    V: StableDeref,
 {
     type Output = V::Target;
 
