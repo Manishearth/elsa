@@ -16,8 +16,8 @@ use std::iter::{FromIterator, IntoIterator};
 use std::mem::MaybeUninit;
 use std::ops::Index;
 
-use std::ptr::addr_of_mut;
 use std::sync::atomic::AtomicPtr;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::RwLock;
 
@@ -293,46 +293,30 @@ impl<T: StableDeref> FrozenVec<T> {
 /// they only happen on reallocation due to a push going over
 /// the capacity.
 pub struct LockFreeFrozenVec<T: Copy> {
-    vec: AtomicPtr<ErasedThinVec<T>>,
+    data: AtomicPtr<T>,
+    len: AtomicUsize,
+    cap: AtomicUsize,
 }
 
 impl<T: Copy> Drop for LockFreeFrozenVec<T> {
     fn drop(&mut self) {
-        self.lock(|ptr| {
-            unsafe {
-                let cap = (*ptr).cap;
-                let cap_size = std::mem::size_of::<T>() * cap;
-                let num_bytes = std::mem::size_of::<ErasedThinVec<T>>() + cap_size;
-                let align = std::mem::align_of::<ErasedThinVec<T>>();
-                let layout = Layout::from_size_align(num_bytes, align).unwrap();
-                std::alloc::dealloc(ptr.cast(), layout);
-            }
-            (std::ptr::null_mut(), ())
-        })
+        let ptr = self.aquire();
+        let cap = self.cap.load(Ordering::Acquire);
+        let num_bytes = std::mem::size_of::<T>() * cap;
+        let align = std::mem::align_of::<T>();
+        let layout = Layout::from_size_align(num_bytes, align).unwrap();
+        unsafe {
+            std::alloc::dealloc(ptr.cast(), layout);
+        }
     }
 }
-
-#[repr(C)]
-struct ThinVec<T> {
-    len: usize,
-    cap: usize,
-    // This is in where the actual data lives.
-    // The data starts here, but goes beyond the ThinVec
-    data: T,
-}
-type ErasedThinVec<T> = ThinVec<[T; 0]>;
 
 impl<T: Copy> Default for LockFreeFrozenVec<T> {
     fn default() -> Self {
         Self {
-            vec: AtomicPtr::new(
-                Box::into_raw(Box::new(ThinVec {
-                    len: 0,
-                    cap: 128,
-                    data: [Self::UNINIT; 128],
-                }))
-                .cast(),
-            ),
+            data: AtomicPtr::new(Box::into_raw(Box::new([Self::UNINIT; 128])).cast()),
+            len: AtomicUsize::new(0),
+            cap: AtomicUsize::new(128),
         }
     }
 }
@@ -344,65 +328,61 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         Default::default()
     }
 
-    fn lock<U>(&self, f: impl FnOnce(*mut ErasedThinVec<T>) -> (*mut ErasedThinVec<T>, U)) -> U {
-        let mut ptr;
+    fn aquire(&self) -> *mut T {
         loop {
-            ptr = self.vec.swap(std::ptr::null_mut(), Ordering::AcqRel);
+            let ptr = self.data.swap(std::ptr::null_mut(), Ordering::Acquire);
             if !ptr.is_null() {
                 // Wheeeee spinlock
-                break;
+                return ptr;
             }
         }
-        let (ptr, ret) = f(ptr);
-        self.vec.swap(ptr, Ordering::AcqRel);
-        ret
+    }
+
+    fn release(&self, ptr: *mut T) {
+        self.data.store(ptr, Ordering::Release);
     }
 
     // these should never return &T
     // these should never delete any entries
 
     pub fn push(&self, val: T) -> usize {
-        self.lock(|mut ptr| {
+        let mut ptr = self.aquire();
+        // These values must be consistent with the pointer we got.
+        let len = self.len.load(Ordering::Acquire);
+        let cap = self.cap.load(Ordering::Acquire);
+        if len >= cap {
+            // Out of memory, realloc with double the capacity
+            let num_bytes = std::mem::size_of::<T>() * cap;
+            let align = std::mem::align_of::<T>();
+            let layout = Layout::from_size_align(num_bytes, align).unwrap();
             unsafe {
-                let len = (*ptr).len;
-                let cap = (*ptr).cap;
-                if len >= cap {
-                    // Out of memory, realloc with double the capacity
-                    let cap_size = std::mem::size_of::<T>() * cap;
-                    let num_bytes = std::mem::size_of::<ErasedThinVec<T>>() + cap_size;
-                    let align = std::mem::align_of::<ErasedThinVec<T>>();
-                    let layout = Layout::from_size_align(num_bytes, align).unwrap();
-                    ptr = std::alloc::realloc(ptr.cast(), layout, num_bytes + cap_size)
-                        .cast::<ErasedThinVec<T>>();
-                    assert!(!ptr.is_null());
-                    (*ptr).cap = cap * 2;
-                }
-                let addr = addr_of_mut!((*ptr).data).cast::<T>();
-                let addr = addr.add(len);
-                *addr = val;
-                (*ptr).len = len + 1;
-                (ptr, len)
+                ptr = std::alloc::realloc(ptr.cast(), layout, num_bytes * 2).cast::<T>();
             }
-        })
-    }
-}
+            assert!(!ptr.is_null());
+            self.cap.store(cap * 2, Ordering::Release);
+        }
+        unsafe {
+            ptr.add(len).write(val);
+        }
+        self.len.store(len + 1, Ordering::Release);
 
-impl<T: Copy> LockFreeFrozenVec<T> {
+        self.release(ptr);
+        len
+    }
+
     pub fn get(&self, index: usize) -> Option<T> {
-        self.lock(|ptr| {
-            let val;
-            unsafe {
-                let len = (*ptr).len;
-                if index < len {
-                    let addr = addr_of_mut!((*ptr).data).cast::<T>();
-                    let addr = addr.add(index);
-                    val = Some(*addr);
-                } else {
-                    val = None;
-                }
-            }
-            (ptr, val)
-        })
+        // The length can only grow, so just doing the length check
+        // independently of the aquire and read is fine. Worst case we
+        // read an old length value and end up returning `None` even if
+        // another thread already inserted the value.
+        let len = self.len.load(Ordering::Relaxed);
+        if index >= len {
+            return None;
+        }
+        let ptr = self.aquire();
+        let val = unsafe { ptr.add(index).read() };
+        self.release(ptr);
+        Some(val)
     }
 }
 
