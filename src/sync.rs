@@ -7,13 +7,18 @@
 //!
 
 use stable_deref_trait::StableDeref;
+use std::alloc::Layout;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::iter::{FromIterator, IntoIterator};
+use std::mem::MaybeUninit;
 use std::ops::Index;
 
+use std::ptr::addr_of_mut;
+use std::sync::atomic::AtomicPtr;
+use std::sync::atomic::Ordering;
 use std::sync::RwLock;
 
 /// Append-only threadsafe version of `std::collections::HashMap` where
@@ -279,6 +284,157 @@ impl<T: StableDeref> FrozenVec<T> {
     }
 
     // TODO add more
+}
+
+/// Append-only threadsafe version of `std::vec::Vec` where
+/// insertion does not require mutable access.
+/// Does not have locks, only allows `Copy` types and will
+/// spinlock on contention. The spinlocks are really rare as
+/// they only happen on reallocation due to a push going over
+/// the capacity.
+pub struct LockFreeFrozenVec<T: Copy> {
+    vec: AtomicPtr<ErasedThinVec<T>>,
+}
+
+impl<T: Copy> Drop for LockFreeFrozenVec<T> {
+    fn drop(&mut self) {
+        self.lock(|ptr| {
+            unsafe {
+                let cap = (*ptr).cap;
+                let cap_size = std::mem::size_of::<T>() * cap;
+                let num_bytes = std::mem::size_of::<ErasedThinVec<T>>() + cap_size;
+                let align = std::mem::align_of::<ErasedThinVec<T>>();
+                let layout = Layout::from_size_align(num_bytes, align).unwrap();
+                std::alloc::dealloc(ptr.cast(), layout);
+            }
+            (std::ptr::null_mut(), ())
+        })
+    }
+}
+
+#[repr(C)]
+struct ThinVec<T> {
+    len: usize,
+    cap: usize,
+    // This is in where the actual data lives.
+    // The data starts here, but goes beyond the ThinVec
+    data: T,
+}
+type ErasedThinVec<T> = ThinVec<[T; 0]>;
+
+impl<T: Copy> Default for LockFreeFrozenVec<T> {
+    fn default() -> Self {
+        Self {
+            vec: AtomicPtr::new(
+                Box::into_raw(Box::new(ThinVec {
+                    len: 0,
+                    cap: 128,
+                    data: [Self::UNINIT; 128],
+                }))
+                .cast(),
+            ),
+        }
+    }
+}
+
+impl<T: Copy> LockFreeFrozenVec<T> {
+    const UNINIT: MaybeUninit<T> = MaybeUninit::uninit();
+
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    fn lock<U>(&self, f: impl FnOnce(*mut ErasedThinVec<T>) -> (*mut ErasedThinVec<T>, U)) -> U {
+        let mut ptr;
+        loop {
+            ptr = self.vec.swap(std::ptr::null_mut(), Ordering::AcqRel);
+            if !ptr.is_null() {
+                // Wheeeee spinlock
+                break;
+            }
+        }
+        let (ptr, ret) = f(ptr);
+        self.vec.swap(ptr, Ordering::AcqRel);
+        ret
+    }
+
+    // these should never return &T
+    // these should never delete any entries
+
+    pub fn push(&self, val: T) -> usize {
+        self.lock(|mut ptr| {
+            unsafe {
+                let len = (*ptr).len;
+                let cap = (*ptr).cap;
+                if len >= cap {
+                    // Out of memory, realloc with double the capacity
+                    let cap_size = std::mem::size_of::<T>() * cap;
+                    let num_bytes = std::mem::size_of::<ErasedThinVec<T>>() + cap_size;
+                    let align = std::mem::align_of::<ErasedThinVec<T>>();
+                    let layout = Layout::from_size_align(num_bytes, align).unwrap();
+                    ptr = std::alloc::realloc(ptr.cast(), layout, num_bytes + cap_size)
+                        .cast::<ErasedThinVec<T>>();
+                    assert!(!ptr.is_null());
+                    (*ptr).cap = cap * 2;
+                }
+                let addr = addr_of_mut!((*ptr).data).cast::<T>();
+                let addr = addr.add(len);
+                *addr = val;
+                (*ptr).len = len + 1;
+                (ptr, len)
+            }
+        })
+    }
+}
+
+impl<T: Copy> LockFreeFrozenVec<T> {
+    pub fn get(&self, index: usize) -> Option<T> {
+        self.lock(|ptr| {
+            let val;
+            unsafe {
+                let len = (*ptr).len;
+                if index < len {
+                    let addr = addr_of_mut!((*ptr).data).cast::<T>();
+                    let addr = addr.add(index);
+                    val = Some(*addr);
+                } else {
+                    val = None;
+                }
+            }
+            (ptr, val)
+        })
+    }
+}
+
+#[test]
+fn test_non_lockfree() {
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    struct Moo(i32);
+    let vec: LockFreeFrozenVec<Moo> = LockFreeFrozenVec::new();
+
+    assert_eq!(vec.get(1), None);
+
+    vec.push(Moo(1));
+    let i = vec.push(Moo(2));
+    vec.push(Moo(3));
+
+    assert_eq!(vec.get(i), Some(Moo(2)));
+
+    std::thread::scope(|s| {
+        s.spawn(|| {
+            for i in 0..1000 {
+                vec.push(Moo(i));
+            }
+        });
+        s.spawn(|| {
+            for i in 0..1000 {
+                vec.push(Moo(i));
+            }
+        });
+        for i in 0..2000 {
+            while vec.get(i).is_none() {}
+        }
+    });
 }
 
 /// Append-only threadsafe version of `std::collections::BTreeMap` where
