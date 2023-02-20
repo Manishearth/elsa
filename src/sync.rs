@@ -301,9 +301,7 @@ pub struct LockFreeFrozenVec<T: Copy> {
 impl<T: Copy> Drop for LockFreeFrozenVec<T> {
     fn drop(&mut self) {
         let cap = *self.cap.get_mut();
-        let num_bytes = std::mem::size_of::<T>() * cap;
-        let align = std::mem::align_of::<T>();
-        let layout = Layout::from_size_align(num_bytes, align).unwrap();
+        let layout = self.layout(cap);
         unsafe {
             std::alloc::dealloc((*self.data.get_mut()).cast(), layout);
         }
@@ -351,6 +349,12 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         ret
     }
 
+    fn layout(&self, cap: usize) -> Layout {
+        let num_bytes = std::mem::size_of::<T>() * cap;
+        let align = std::mem::align_of::<T>();
+        Layout::from_size_align(num_bytes, align).unwrap()
+    }
+
     // these should never return &T
     // these should never delete any entries
 
@@ -369,26 +373,27 @@ impl<T: Copy> LockFreeFrozenVec<T> {
             let len = self.len.load(Ordering::Acquire);
             let cap = self.cap.load(Ordering::Acquire);
             if len >= cap {
-                let align = std::mem::align_of::<T>();
                 if cap == 0 {
                     // No memory allocated yet
-                    let num_bytes = std::mem::size_of::<T>() * 128;
-                    let layout = Layout::from_size_align(num_bytes, align).unwrap();
+                    let layout = self.layout(128);
                     // SAFETY: `LockFreeFrozenVec` statically rejects zsts
                     unsafe {
                         *ptr = std::alloc::alloc(layout).cast::<T>();
                     }
+                    // This is written before the end of the `lock` closure, so no one will observe this
+                    // until the data pointer has been updated anyway.
                     self.cap.store(128, Ordering::Release);
                 } else {
                     // Out of memory, realloc with double the capacity
-                    let num_bytes = std::mem::size_of::<T>() * cap;
-                    let layout = Layout::from_size_align(num_bytes, align).unwrap();
+                    let layout = self.layout(cap);
+                    let new_size = layout.size() * 2;
                     // SAFETY: `LockFreeFrozenVec` statically rejects zsts and the input `ptr` has always been
                     // allocated at the size stated in `cap`.
                     unsafe {
-                        *ptr =
-                            std::alloc::realloc((*ptr).cast(), layout, num_bytes * 2).cast::<T>();
+                        *ptr = std::alloc::realloc((*ptr).cast(), layout, new_size).cast::<T>();
                     }
+                    // This is written before the end of the `lock` closure, so no one will observe this
+                    // until the data pointer has been updated anyway.
                     self.cap.store(cap * 2, Ordering::Release);
                 }
                 assert!(!ptr.is_null());
@@ -396,6 +401,11 @@ impl<T: Copy> LockFreeFrozenVec<T> {
             unsafe {
                 ptr.add(len).write(val);
             }
+            // This is written before updating the data pointer. Other `push` calls cannot observe this,
+            // because they are blocked on aquiring the data pointer before they ever read the `len`.
+            // `get` may read the length before actually aquiring the data pointer lock, but that is fine,
+            // as once it is able to aquire the lock, there will be actually the right number of elements
+            // stored.
             self.len.store(len + 1, Ordering::Release);
             len
         })
@@ -403,7 +413,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
 
     pub fn get(&self, index: usize) -> Option<T> {
         // The length can only grow, so just doing the length check
-        // independently of the aquire and read is fine. Worst case we
+        // independently of the `lock` and read is fine. Worst case we
         // read an old length value and end up returning `None` even if
         // another thread already inserted the value.
         let len = self.len.load(Ordering::Relaxed);
