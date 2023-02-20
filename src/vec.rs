@@ -24,7 +24,7 @@ impl<T> FrozenVec<T> {
     }
 }
 
-impl<T: StableDeref> FrozenVec<T> {
+impl<T> FrozenVec<T> {
     // these should never return &T
     // these should never delete any entries
 
@@ -35,7 +35,9 @@ impl<T: StableDeref> FrozenVec<T> {
             (*vec).push(val)
         }
     }
+}
 
+impl<T: StableDeref> FrozenVec<T> {
     /// Push, immediately getting a reference to the element
     pub fn push_get(&self, val: T) -> &T::Target {
         unsafe {
@@ -62,7 +64,19 @@ impl<T: StableDeref> FrozenVec<T> {
         let vec = self.vec.get();
         &**(*vec).get_unchecked(index)
     }
+}
 
+impl<T: Copy> FrozenVec<T> {
+    /// Returns a copy of an element.
+    pub fn get_copy(&self, index: usize) -> Option<T> {
+        unsafe {
+            let vec = self.vec.get();
+            (*vec).get(index).copied()
+        }
+    }
+}
+
+impl<T> FrozenVec<T> {
     /// Returns the number of elements in the vector.
     pub fn len(&self) -> usize {
         unsafe {
@@ -75,7 +89,9 @@ impl<T: StableDeref> FrozenVec<T> {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+}
 
+impl<T: StableDeref> FrozenVec<T> {
     /// Returns the first element of the vector, or `None` if empty.
     pub fn first(&self) -> Option<&T::Target> {
         unsafe {
@@ -91,17 +107,20 @@ impl<T: StableDeref> FrozenVec<T> {
             (*vec).last().map(|x| &**x)
         }
     }
-
     /// Returns an iterator over the vector.
     pub fn iter(&self) -> Iter<T> {
         self.into_iter()
     }
+}
 
+impl<T: StableDeref> FrozenVec<T> {
     /// Converts the frozen vector into a plain vector.
     pub fn into_vec(self) -> Vec<T> {
         self.vec.into_inner()
     }
+}
 
+impl<T: StableDeref> FrozenVec<T> {
     // binary search functions: they need to be reimplemented here to be safe (instead of calling
     // their equivalents directly on the underlying Vec), as they run user callbacks that could
     // reentrantly call other functions on this vector
@@ -288,6 +307,25 @@ fn test_accessors() {
     assert_eq!(vec.first(), Some("a"));
     assert_eq!(vec.last(), Some("c"));
     assert_eq!(vec.get(1), Some("b"));
+}
+
+#[test]
+fn test_non_stable_deref() {
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    struct Moo(i32);
+    let vec: FrozenVec<Moo> = FrozenVec::new();
+
+    assert_eq!(vec.is_empty(), true);
+    assert_eq!(vec.len(), 0);
+    assert_eq!(vec.get_copy(1), None);
+
+    vec.push(Moo(1));
+    vec.push(Moo(2));
+    vec.push(Moo(3));
+
+    assert_eq!(vec.is_empty(), false);
+    assert_eq!(vec.len(), 3);
+    assert_eq!(vec.get_copy(1), Some(Moo(2)));
 }
 
 #[test]
