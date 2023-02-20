@@ -336,18 +336,19 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         }
     }
 
-    fn acquire(&self) -> *mut T {
+    fn lock<U>(&self, f: impl FnOnce(&mut *mut T) -> U) -> U {
+        let mut ptr;
         loop {
-            let ptr = self.data.swap(std::ptr::null_mut(), Ordering::Acquire);
+            ptr = self.data.swap(std::ptr::null_mut(), Ordering::Acquire);
             if !ptr.is_null() {
                 // Wheeeee spinlock
-                return ptr;
+                break;
             }
         }
-    }
 
-    fn release(&self, ptr: *mut T) {
+        let ret = f(&mut ptr);
         self.data.store(ptr, Ordering::Release);
+        ret
     }
 
     // these should never return &T
@@ -363,41 +364,41 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         {
             Self::NOT_ZST
         }
-        let mut ptr = self.acquire();
-        // These values must be consistent with the pointer we got.
-        let len = self.len.load(Ordering::Acquire);
-        let cap = self.cap.load(Ordering::Acquire);
-        if len >= cap {
-            let align = std::mem::align_of::<T>();
-            if cap == 0 {
-                // No memory allocated yet
-                let num_bytes = std::mem::size_of::<T>() * 128;
-                let layout = Layout::from_size_align(num_bytes, align).unwrap();
-                // SAFETY: `LockFreeFrozenVec` statically rejects zsts
-                unsafe {
-                    ptr = std::alloc::alloc(layout).cast::<T>();
+        self.lock(|ptr| {
+            // These values must be consistent with the pointer we got.
+            let len = self.len.load(Ordering::Acquire);
+            let cap = self.cap.load(Ordering::Acquire);
+            if len >= cap {
+                let align = std::mem::align_of::<T>();
+                if cap == 0 {
+                    // No memory allocated yet
+                    let num_bytes = std::mem::size_of::<T>() * 128;
+                    let layout = Layout::from_size_align(num_bytes, align).unwrap();
+                    // SAFETY: `LockFreeFrozenVec` statically rejects zsts
+                    unsafe {
+                        *ptr = std::alloc::alloc(layout).cast::<T>();
+                    }
+                    self.cap.store(128, Ordering::Release);
+                } else {
+                    // Out of memory, realloc with double the capacity
+                    let num_bytes = std::mem::size_of::<T>() * cap;
+                    let layout = Layout::from_size_align(num_bytes, align).unwrap();
+                    // SAFETY: `LockFreeFrozenVec` statically rejects zsts and the input `ptr` has always been
+                    // allocated at the size stated in `cap`.
+                    unsafe {
+                        *ptr =
+                            std::alloc::realloc((*ptr).cast(), layout, num_bytes * 2).cast::<T>();
+                    }
+                    self.cap.store(cap * 2, Ordering::Release);
                 }
-                self.cap.store(128, Ordering::Release);
-            } else {
-                // Out of memory, realloc with double the capacity
-                let num_bytes = std::mem::size_of::<T>() * cap;
-                let layout = Layout::from_size_align(num_bytes, align).unwrap();
-                // SAFETY: `LockFreeFrozenVec` statically rejects zsts and the input `ptr` has always been
-                // allocated at the size stated in `cap`.
-                unsafe {
-                    ptr = std::alloc::realloc(ptr.cast(), layout, num_bytes * 2).cast::<T>();
-                }
-                self.cap.store(cap * 2, Ordering::Release);
+                assert!(!ptr.is_null());
             }
-            assert!(!ptr.is_null());
-        }
-        unsafe {
-            ptr.add(len).write(val);
-        }
-        self.len.store(len + 1, Ordering::Release);
-
-        self.release(ptr);
-        len
+            unsafe {
+                ptr.add(len).write(val);
+            }
+            self.len.store(len + 1, Ordering::Release);
+            len
+        })
     }
 
     pub fn get(&self, index: usize) -> Option<T> {
@@ -409,10 +410,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         if index >= len {
             return None;
         }
-        let ptr = self.acquire();
-        let val = unsafe { ptr.add(index).read() };
-        self.release(ptr);
-        Some(val)
+        self.lock(|ptr| Some(unsafe { ptr.add(index).read() }))
     }
 }
 
