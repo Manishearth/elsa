@@ -314,18 +314,27 @@ impl<T: Copy> Drop for LockFreeFrozenVec<T> {
 impl<T: Copy> Default for LockFreeFrozenVec<T> {
     fn default() -> Self {
         Self {
-            data: AtomicPtr::new(Box::into_raw(Box::new([Self::UNINIT; 128])).cast()),
+            // FIXME: use `std::ptr::invalid_mut()` once that is stable.
+            data: AtomicPtr::new(std::mem::align_of::<T>() as *mut T),
             len: AtomicUsize::new(0),
-            cap: AtomicUsize::new(128),
+            cap: AtomicUsize::new(0),
         }
     }
 }
 
 impl<T: Copy> LockFreeFrozenVec<T> {
-    const UNINIT: MaybeUninit<T> = MaybeUninit::uninit();
-
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub fn with_capacity(cap: usize) -> Self {
+        Self {
+            data: AtomicPtr::new(
+                Box::into_raw(vec![MaybeUninit::<T>::uninit(); cap].into_boxed_slice()).cast(),
+            ),
+            len: AtomicUsize::new(0),
+            cap: AtomicUsize::new(cap),
+        }
     }
 
     fn aquire(&self) -> *mut T {
@@ -345,21 +354,43 @@ impl<T: Copy> LockFreeFrozenVec<T> {
     // these should never return &T
     // these should never delete any entries
 
+    const NOT_ZST: () = if std::mem::size_of::<T>() == 0 {
+        panic!("`LockFreeFrozenVec` cannot be used with ZSTs");
+    };
+
     pub fn push(&self, val: T) -> usize {
+        // This statement actually does something: it evaluates a constant.
+        #[allow(path_statements)]
+        {
+            Self::NOT_ZST
+        }
         let mut ptr = self.aquire();
         // These values must be consistent with the pointer we got.
         let len = self.len.load(Ordering::Acquire);
         let cap = self.cap.load(Ordering::Acquire);
         if len >= cap {
-            // Out of memory, realloc with double the capacity
-            let num_bytes = std::mem::size_of::<T>() * cap;
             let align = std::mem::align_of::<T>();
-            let layout = Layout::from_size_align(num_bytes, align).unwrap();
-            unsafe {
-                ptr = std::alloc::realloc(ptr.cast(), layout, num_bytes * 2).cast::<T>();
+            if cap == 0 {
+                // No memory allocated yet
+                let num_bytes = std::mem::size_of::<T>() * 128;
+                let layout = Layout::from_size_align(num_bytes, align).unwrap();
+                // SAFETY: `LockFreeFrozenVec` statically rejects zsts
+                unsafe {
+                    ptr = std::alloc::alloc(layout).cast::<T>();
+                }
+                self.cap.store(128, Ordering::Release);
+            } else {
+                // Out of memory, realloc with double the capacity
+                let num_bytes = std::mem::size_of::<T>() * cap;
+                let layout = Layout::from_size_align(num_bytes, align).unwrap();
+                // SAFETY: `LockFreeFrozenVec` statically rejects zsts and the input `ptr` has always been
+                // allocated at the size stated in `cap`.
+                unsafe {
+                    ptr = std::alloc::realloc(ptr.cast(), layout, num_bytes * 2).cast::<T>();
+                }
+                self.cap.store(cap * 2, Ordering::Release);
             }
             assert!(!ptr.is_null());
-            self.cap.store(cap * 2, Ordering::Release);
         }
         unsafe {
             ptr.add(len).write(val);
@@ -390,31 +421,37 @@ impl<T: Copy> LockFreeFrozenVec<T> {
 fn test_non_lockfree() {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     struct Moo(i32);
-    let vec: LockFreeFrozenVec<Moo> = LockFreeFrozenVec::new();
 
-    assert_eq!(vec.get(1), None);
+    for vec in [
+        LockFreeFrozenVec::new(),
+        LockFreeFrozenVec::with_capacity(1),
+        LockFreeFrozenVec::with_capacity(2),
+        LockFreeFrozenVec::with_capacity(1000),
+    ] {
+        assert_eq!(vec.get(1), None);
 
-    vec.push(Moo(1));
-    let i = vec.push(Moo(2));
-    vec.push(Moo(3));
+        vec.push(Moo(1));
+        let i = vec.push(Moo(2));
+        vec.push(Moo(3));
 
-    assert_eq!(vec.get(i), Some(Moo(2)));
+        assert_eq!(vec.get(i), Some(Moo(2)));
 
-    std::thread::scope(|s| {
-        s.spawn(|| {
-            for i in 0..1000 {
-                vec.push(Moo(i));
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                for i in 0..1000 {
+                    vec.push(Moo(i));
+                }
+            });
+            s.spawn(|| {
+                for i in 0..1000 {
+                    vec.push(Moo(i));
+                }
+            });
+            for i in 0..2000 {
+                while vec.get(i).is_none() {}
             }
         });
-        s.spawn(|| {
-            for i in 0..1000 {
-                vec.push(Moo(i));
-            }
-        });
-        for i in 0..2000 {
-            while vec.get(i).is_none() {}
-        }
-    });
+    }
 }
 
 /// Append-only threadsafe version of `std::collections::BTreeMap` where
