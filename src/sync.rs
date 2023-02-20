@@ -300,13 +300,12 @@ pub struct LockFreeFrozenVec<T: Copy> {
 
 impl<T: Copy> Drop for LockFreeFrozenVec<T> {
     fn drop(&mut self) {
-        let ptr = self.acquire();
-        let cap = self.cap.load(Ordering::Acquire);
+        let cap = *self.cap.get_mut();
         let num_bytes = std::mem::size_of::<T>() * cap;
         let align = std::mem::align_of::<T>();
         let layout = Layout::from_size_align(num_bytes, align).unwrap();
         unsafe {
-            std::alloc::dealloc(ptr.cast(), layout);
+            std::alloc::dealloc((*self.data.get_mut()).cast(), layout);
         }
     }
 }
