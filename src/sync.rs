@@ -300,7 +300,7 @@ pub struct LockFreeFrozenVec<T: Copy> {
 
 impl<T: Copy> Drop for LockFreeFrozenVec<T> {
     fn drop(&mut self) {
-        let ptr = self.aquire();
+        let ptr = self.acquire();
         let cap = self.cap.load(Ordering::Acquire);
         let num_bytes = std::mem::size_of::<T>() * cap;
         let align = std::mem::align_of::<T>();
@@ -337,7 +337,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         }
     }
 
-    fn aquire(&self) -> *mut T {
+    fn acquire(&self) -> *mut T {
         loop {
             let ptr = self.data.swap(std::ptr::null_mut(), Ordering::Acquire);
             if !ptr.is_null() {
@@ -364,7 +364,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         {
             Self::NOT_ZST
         }
-        let mut ptr = self.aquire();
+        let mut ptr = self.acquire();
         // These values must be consistent with the pointer we got.
         let len = self.len.load(Ordering::Acquire);
         let cap = self.cap.load(Ordering::Acquire);
@@ -410,7 +410,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         if index >= len {
             return None;
         }
-        let ptr = self.aquire();
+        let ptr = self.acquire();
         let val = unsafe { ptr.add(index).read() };
         self.release(ptr);
         Some(val)
