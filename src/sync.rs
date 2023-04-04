@@ -302,10 +302,12 @@ impl<T: Copy> Drop for LockFreeFrozenVec<T> {
     fn drop(&mut self) {
         let cap = *self.cap.get_mut();
         let layout = Self::layout(cap);
+        if cap != 0 {
         unsafe {
             std::alloc::dealloc((*self.data.get_mut()).cast(), layout);
         }
     }
+}
 }
 
 impl<T: Copy> Default for LockFreeFrozenVec<T> {
