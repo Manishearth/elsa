@@ -301,7 +301,7 @@ pub struct LockFreeFrozenVec<T: Copy> {
 impl<T: Copy> Drop for LockFreeFrozenVec<T> {
     fn drop(&mut self) {
         let cap = *self.cap.get_mut();
-        let layout = self.layout(cap);
+        let layout = Self::layout(cap);
         unsafe {
             std::alloc::dealloc((*self.data.get_mut()).cast(), layout);
         }
@@ -349,7 +349,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         ret
     }
 
-    fn layout(&self, cap: usize) -> Layout {
+    fn layout(cap: usize) -> Layout {
         let num_bytes = std::mem::size_of::<T>() * cap;
         let align = std::mem::align_of::<T>();
         Layout::from_size_align(num_bytes, align).unwrap()
@@ -375,7 +375,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
             if len >= cap {
                 if cap == 0 {
                     // No memory allocated yet
-                    let layout = self.layout(128);
+                    let layout = Self::layout(128);
                     // SAFETY: `LockFreeFrozenVec` statically rejects zsts
                     unsafe {
                         *ptr = std::alloc::alloc(layout).cast::<T>();
@@ -385,7 +385,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
                     self.cap.store(128, Ordering::Release);
                 } else {
                     // Out of memory, realloc with double the capacity
-                    let layout = self.layout(cap);
+                    let layout = Self::layout(cap);
                     let new_size = layout.size() * 2;
                     // SAFETY: `LockFreeFrozenVec` statically rejects zsts and the input `ptr` has always been
                     // allocated at the size stated in `cap`.
