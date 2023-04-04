@@ -13,7 +13,6 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::iter::{FromIterator, IntoIterator};
-use std::mem::MaybeUninit;
 use std::ops::Index;
 
 use std::sync::atomic::AtomicPtr;
@@ -303,11 +302,11 @@ impl<T: Copy> Drop for LockFreeFrozenVec<T> {
         let cap = *self.cap.get_mut();
         let layout = Self::layout(cap);
         if cap != 0 {
-        unsafe {
-            std::alloc::dealloc((*self.data.get_mut()).cast(), layout);
+            unsafe {
+                std::alloc::dealloc((*self.data.get_mut()).cast(), layout);
+            }
         }
     }
-}
 }
 
 impl<T: Copy> Default for LockFreeFrozenVec<T> {
@@ -328,9 +327,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
 
     pub fn with_capacity(cap: usize) -> Self {
         Self {
-            data: AtomicPtr::new(
-                Box::into_raw(vec![MaybeUninit::<T>::uninit(); cap].into_boxed_slice()).cast(),
-            ),
+            data: AtomicPtr::new(unsafe { std::alloc::alloc(Self::layout(cap)) }.cast()),
             len: AtomicUsize::new(0),
             cap: AtomicUsize::new(cap),
         }
@@ -461,6 +458,13 @@ fn test_non_lockfree() {
             }
         });
     }
+    // Test dropping empty vecs
+    for _ in [
+        LockFreeFrozenVec::<()>::new(),
+        LockFreeFrozenVec::with_capacity(1),
+        LockFreeFrozenVec::with_capacity(2),
+        LockFreeFrozenVec::with_capacity(1000),
+    ] {}
 }
 
 /// Append-only threadsafe version of `std::collections::BTreeMap` where
