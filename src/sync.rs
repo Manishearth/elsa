@@ -34,13 +34,15 @@ impl<K, V> Default for FrozenMap<K, V> {
     }
 }
 
-impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
-    // these should never return &K or &V
-    // these should never delete any entries
-
+impl<K, V> FrozenMap<K, V> {
     pub fn new() -> Self {
         Self::default()
     }
+}
+
+impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
+    // these should never return &K or &V
+    // these should never delete any entries
 
     /// If the key exists in the map, returns a reference
     /// to the corresponding value, otherwise inserts a
@@ -221,17 +223,149 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     // TODO add more
 }
 
+impl<K: Clone, V> FrozenMap<K, V> {
+    pub fn keys_cloned(&self) -> Vec<K> {
+        self.map.read().unwrap().keys().cloned().collect()
+    }
+}
+
+impl<K: Eq + Hash, V: Copy> FrozenMap<K, V> {
+    /// Returns a copy of the value corresponding to the key.
+    ///
+    /// The key may be any borrowed form of the map's key type, but
+    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
+    /// the key type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// map.get_copy_or_insert(1, 6);
+    /// assert_eq!(map.get_copy(&1), Some(6));
+    /// assert_eq!(map.get_copy(&2), None);
+    /// ```
+    pub fn get_copy<Q: ?Sized>(&self, k: &Q) -> Option<V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        let map = self.map.read().unwrap();
+        map.get(k).cloned()
+    }
+
+    /// If the key exists in the map, returns a reference
+    /// to the corresponding value, otherwise inserts a
+    /// new entry in the map for that key and returns a
+    /// reference to the given value.
+    ///
+    /// Existing values are never overwritten.
+    ///
+    /// The key may be any borrowed form of the map's key type, but
+    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
+    /// the key type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// assert_eq!(map.get_copy_or_insert(1, 6), 6);
+    /// assert_eq!(map.get_copy_or_insert(1, 12), 6);
+    /// ```
+    pub fn get_copy_or_insert(&self, k: K, v: V) -> V {
+        let mut map = self.map.write().unwrap();
+        let inserted = map.entry(k).or_insert(v);
+        *inserted
+    }
+
+    /// If the key exists in the map, returns a reference to the corresponding
+    /// value, otherwise inserts a new entry in the map for that key and the
+    /// value returned by the creation function, and returns a reference to the
+    /// generated value.
+    ///
+    /// Existing values are never overwritten.
+    ///
+    /// The key may be any borrowed form of the map's key type, but [`Hash`] and
+    /// [`Eq`] on the borrowed form *must* match those for the key type.
+    ///
+    /// **Note** that the write lock is held for the duration of this function’s
+    /// execution, even while the value creation function is executing (if
+    /// needed). This will block any concurrent `get` or `insert` calls.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// assert_eq!(map.get_copy_or_insert_with(1, || 6), 6);
+    /// assert_eq!(map.get_copy_or_insert_with(1, || unreachable!()), 6);
+    /// ```
+    pub fn get_copy_or_insert_with(&self, k: K, f: impl FnOnce() -> V) -> V {
+        let mut map = self.map.write().unwrap();
+        let inserted = map.entry(k).or_insert_with(f);
+        *inserted
+    }
+
+    /// If the key exists in the map, returns a reference to the corresponding
+    /// value, otherwise inserts a new entry in the map for that key and the
+    /// value returned by the creation function, and returns a reference to the
+    /// generated value.
+    ///
+    /// Existing values are never overwritten.
+    ///
+    /// The key may be any borrowed form of the map's key type, but [`Hash`] and
+    /// [`Eq`] on the borrowed form *must* match those for the key type.
+    ///
+    /// **Note** that the write lock is held for the duration of this function’s
+    /// execution, even while the value creation function is executing (if
+    /// needed). This will block any concurrent `get` or `insert` calls.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// assert_eq!(map.get_copy_or_insert_with_key(1, |_| 6), 6);
+    /// assert_eq!(map.get_copy_or_insert_with_key(1, |_| unreachable!()), 6);
+    /// ```
+    pub fn get_copy_or_insert_with_key(&self, k: K, f: impl FnOnce(&K) -> V) -> V {
+        let mut map = self.map.write().unwrap();
+        let inserted = map.entry(k).or_insert_with_key(f);
+        *inserted
+    }
+}
+
+impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
+    /// Get mutable access to the underlying [`HashMap`].
+    ///
+    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
+    /// the 'frozen' contents.
+    fn as_mut(&mut self) -> &mut HashMap<K, V> {
+        self.map.get_mut().unwrap()
+    }
+}
+
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access
 pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
 }
 
-impl<T> Default for FrozenVec<T> {
-    fn default() -> Self {
-        Self {
-            vec: Default::default(),
-        }
+impl<T> FrozenVec<T> {
+    /// Returns the number of elements in the vector.
+    pub fn len(&self) -> usize {
+        let vec = self.vec.read().unwrap();
+        vec.len()
+    }
+
+    /// Returns `true` if the vector contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -283,6 +417,24 @@ impl<T: StableDeref> FrozenVec<T> {
     }
 
     // TODO add more
+}
+
+impl<T> std::convert::AsMut<Vec<T>> for FrozenVec<T> {
+    /// Get mutable access to the underlying vector.
+    ///
+    /// This is safe, as it requires a `&mut self`, ensuring nothing is using
+    /// the 'frozen' contents.
+    fn as_mut(&mut self) -> &mut Vec<T> {
+        self.vec.get_mut().unwrap()
+    }
+}
+
+impl<T> Default for FrozenVec<T> {
+    fn default() -> Self {
+        Self {
+            vec: Default::default(),
+        }
+    }
 }
 
 /// Append-only threadsafe version of `std::vec::Vec` where
