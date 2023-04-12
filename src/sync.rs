@@ -277,6 +277,7 @@ impl<K: Eq + Hash, V: Copy> FrozenMap<K, V> {
     /// ```
     pub fn get_copy_or_insert(&self, k: K, v: V) -> V {
         let mut map = self.map.write().unwrap();
+        // This is safe because `or_insert` does not overwrite existing values
         let inserted = map.entry(k).or_insert(v);
         *inserted
     }
@@ -306,6 +307,7 @@ impl<K: Eq + Hash, V: Copy> FrozenMap<K, V> {
     /// ```
     pub fn get_copy_or_insert_with(&self, k: K, f: impl FnOnce() -> V) -> V {
         let mut map = self.map.write().unwrap();
+        // This is safe because `or_insert_with` does not overwrite existing values
         let inserted = map.entry(k).or_insert_with(f);
         *inserted
     }
@@ -335,6 +337,7 @@ impl<K: Eq + Hash, V: Copy> FrozenMap<K, V> {
     /// ```
     pub fn get_copy_or_insert_with_key(&self, k: K, f: impl FnOnce(&K) -> V) -> V {
         let mut map = self.map.write().unwrap();
+        // This is safe because `or_insert_with_key` does not overwrite existing values
         let inserted = map.entry(k).or_insert_with_key(f);
         *inserted
     }
