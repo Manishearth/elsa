@@ -504,9 +504,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
     }
 
     fn layout(cap: usize) -> Layout {
-        let num_bytes = std::mem::size_of::<T>() * cap;
-        let align = std::mem::align_of::<T>();
-        Layout::from_size_align(num_bytes, align).unwrap()
+        Layout::array::<T>(cap).unwrap()
     }
 
     // these should never return &T
