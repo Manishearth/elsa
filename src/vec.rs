@@ -7,6 +7,7 @@ use stable_deref_trait::StableDeref;
 
 /// Append-only version of `std::vec::Vec` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 pub struct FrozenVec<T> {
     vec: UnsafeCell<Vec<T>>,
     // XXXManishearth do we need a reentrancy guard here as well?

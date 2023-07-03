@@ -22,6 +22,7 @@ use std::sync::RwLock;
 
 /// Append-only threadsafe version of `std::collections::HashMap` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 pub struct FrozenMap<K, V> {
     map: RwLock<HashMap<K, V>>,
 }
@@ -382,6 +383,7 @@ impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
 
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
 }
@@ -493,6 +495,7 @@ impl<T> Default for FrozenVec<T> {
 /// spinlock on contention. The spinlocks are really rare as
 /// they only happen on reallocation due to a push going over
 /// the capacity.
+#[derive(Debug)]
 pub struct LockFreeFrozenVec<T: Copy> {
     data: AtomicPtr<T>,
     len: AtomicUsize,
