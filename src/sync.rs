@@ -381,6 +381,14 @@ impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
     }
 }
 
+impl<K: Clone, V: Clone> Clone for FrozenMap<K, V> {
+    fn clone(&self) -> Self {
+        Self {
+            map: self.map.read().unwrap().clone().into(),
+        }
+    }
+}
+
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access
 pub struct FrozenVec<T> {
@@ -484,6 +492,14 @@ impl<T> Default for FrozenVec<T> {
     fn default() -> Self {
         Self {
             vec: Default::default(),
+        }
+    }
+}
+
+impl<T: Clone> Clone for FrozenVec<T> {
+    fn clone(&self) -> Self {
+        Self {
+            vec: self.vec.read().unwrap().clone().into(),
         }
     }
 }
@@ -713,6 +729,20 @@ fn test_non_lockfree_unchecked() {
     LockFreeFrozenVec::<()>::new();
 }
 
+impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
+    fn clone(&self) -> Self {
+        let cap = self.cap.load(Ordering::Acquire);
+        let len = self.len.load(Ordering::Acquire);
+
+        let new_vec = Self::with_capacity(cap);
+        for i in 0..len {
+            new_vec.push(self.get(i).unwrap());
+        }
+
+        new_vec
+    }
+}
+
 #[test]
 fn test_non_lockfree() {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -931,5 +961,11 @@ impl<K: Clone + Ord, V: StableDeref> FromIterator<(K, V)> for FrozenBTreeMap<K, 
 impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<K: Clone, V: Clone> Clone for FrozenBTreeMap<K, V> {
+    fn clone(&self) -> Self {
+        Self(self.0.read().unwrap().clone().into())
     }
 }

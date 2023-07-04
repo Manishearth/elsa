@@ -235,3 +235,12 @@ impl<K: Eq + Hash, V, S: Default> Default for FrozenIndexMap<K, V, S> {
         }
     }
 }
+
+impl<K: Clone, V: Clone, S: Clone> Clone for FrozenIndexMap<K, V, S> {
+    fn clone(&self) -> Self {
+        Self {
+            map: unsafe { self.map.get().as_ref().unwrap() }.clone().into(),
+            in_use: self.in_use.clone(),
+        }
+    }
+}

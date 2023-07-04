@@ -180,3 +180,12 @@ impl<T: Eq + Hash, S: Default> Default for FrozenIndexSet<T, S> {
         Self::from(IndexSet::default())
     }
 }
+
+impl<K: Clone, V: Clone> Clone for FrozenIndexSet<K, V> {
+    fn clone(&self) -> Self {
+        Self {
+            set: unsafe { self.set.get().as_ref().unwrap() }.clone().into(),
+            in_use: self.in_use.clone(),
+        }
+    }
+}
