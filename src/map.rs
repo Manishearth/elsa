@@ -68,14 +68,18 @@ impl<K: Eq + Hash, V> FrozenMap<K, V> {
 }
 
 impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
+    pub fn insert(&self, k: K, v: V) -> &V::Target {
+        self.insert_with(k, || v)
+    }
+
     // these should never return &K or &V
     // these should never delete any entries
-    pub fn insert(&self, k: K, v: V) -> &V::Target {
+    pub fn insert_with(&self, k: K, v: impl FnOnce() -> V) -> &V::Target {
         assert!(!self.in_use.get());
         self.in_use.set(true);
         let ret = unsafe {
             let map = self.map.get();
-            &*(*map).entry(k).or_insert(v)
+            &*(*map).entry(k).or_insert_with(v)
         };
         self.in_use.set(false);
         ret
