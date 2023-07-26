@@ -153,7 +153,7 @@ impl<K, V, S> FrozenMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use elsa::sync::FrozenMap;
+    /// use elsa::FrozenMap;
     ///
     /// let map = FrozenMap::new();
     /// map.insert(1, Box::new("a"));
@@ -414,7 +414,7 @@ impl<K, V> FrozenBTreeMap<K, V> {
     /// # Examples
     ///
     /// ```
-    /// use elsa::sync::FrozenBTreeMap;
+    /// use elsa::FrozenBTreeMap;
     ///
     /// let map = FrozenBTreeMap::new();
     /// map.insert(1, Box::new("a"));
