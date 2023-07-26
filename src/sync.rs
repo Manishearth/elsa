@@ -463,11 +463,7 @@ impl<T> FrozenVec<T> {
     /// assert_eq!(tuple_vec, vec!["a", "b"]);
     /// ```
     pub fn into_vec(self) -> Vec<T> {
-        self.vec
-            .into_inner()
-            .unwrap()
-            .into_iter()
-            .collect::<Vec<_>>()
+        self.vec.into_inner().unwrap()
     }
 
     // TODO add more
