@@ -353,6 +353,20 @@ impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
     }
 }
 
+impl<K, V> IntoIterator for FrozenMap<K, V> {
+    type Item = (K, V);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.map
+            .into_inner()
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+}
+
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access
 pub struct FrozenVec<T> {
@@ -437,6 +451,15 @@ impl<T> Default for FrozenVec<T> {
         Self {
             vec: Default::default(),
         }
+    }
+}
+
+impl<T> IntoIterator for FrozenVec<T> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.vec.into_inner().unwrap().into_iter()
     }
 }
 
@@ -620,6 +643,8 @@ fn test_non_lockfree() {
     ] {}
 }
 
+// TODO: Implement IntoIterator for LockFreeFrozenVec
+
 /// Append-only threadsafe version of `std::collections::BTreeMap` where
 /// insertion does not require mutable access
 #[derive(Debug)]
@@ -779,5 +804,19 @@ impl<K: Clone + Ord, V: StableDeref> FromIterator<(K, V)> for FrozenBTreeMap<K, 
 impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<K, V> IntoIterator for FrozenBTreeMap<K, V> {
+    type Item = (K, V);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0
+            .into_inner()
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }

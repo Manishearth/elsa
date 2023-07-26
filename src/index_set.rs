@@ -178,3 +178,16 @@ impl<T: Eq + Hash, S: Default> Default for FrozenIndexSet<T, S> {
         Self::from(IndexSet::default())
     }
 }
+
+impl<T, S> IntoIterator for FrozenIndexSet<T, S> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.set
+            .into_inner()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+}

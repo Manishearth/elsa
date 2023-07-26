@@ -247,6 +247,19 @@ impl<K: Eq + Hash, V, S: Default> Default for FrozenMap<K, V, S> {
     }
 }
 
+impl<K, V> IntoIterator for FrozenMap<K, V> {
+    type Item = (K, V);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.map
+            .into_inner()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+}
+
 /// Append-only version of `std::collections::BTreeMap` where
 /// insertion does not require mutable access
 pub struct FrozenBTreeMap<K, V> {
@@ -447,5 +460,18 @@ impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
             map: UnsafeCell::new(Default::default()),
             in_use: Cell::new(false),
         }
+    }
+}
+
+impl<K, V> IntoIterator for FrozenBTreeMap<K, V> {
+    type Item = (K, V);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.map
+            .into_inner()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }

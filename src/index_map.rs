@@ -172,11 +172,11 @@ impl<K, V, S> From<IndexMap<K, V, S>> for FrozenIndexMap<K, V, S> {
 }
 
 impl<Q: ?Sized, K: Eq + Hash, V: StableDeref, S: BuildHasher> Index<&Q> for FrozenIndexMap<K, V, S>
-    where
-        Q: Eq + Hash,
-        K: Eq + Hash + Borrow<Q>,
-        V: StableDeref,
-        S: BuildHasher
+where
+    Q: Eq + Hash,
+    K: Eq + Hash + Borrow<Q>,
+    V: StableDeref,
+    S: BuildHasher,
 {
     type Output = V::Target;
 
@@ -211,5 +211,18 @@ impl<K: Eq + Hash, V, S: Default> Default for FrozenIndexMap<K, V, S> {
             map: UnsafeCell::new(Default::default()),
             in_use: Cell::new(false),
         }
+    }
+}
+
+impl<K, V, S> IntoIterator for FrozenIndexMap<K, V, S> {
+    type Item = (K, V);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.map
+            .into_inner()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }
