@@ -275,19 +275,6 @@ impl<'a, T: StableDeref> IntoIterator for &'a FrozenVec<T> {
     }
 }
 
-impl<T> IntoIterator for FrozenVec<T> {
-    type Item = T;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.vec
-            .into_inner()
-            .into_iter()
-            .collect::<Vec<_>>()
-            .into_iter()
-    }
-}
-
 #[test]
 fn test_iteration() {
     let vec = vec!["a", "b", "c", "d"];

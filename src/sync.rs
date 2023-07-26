@@ -189,6 +189,33 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         let ret = map.get(k).map(f);
         ret
     }
+}
+
+impl<K, V> FrozenMap<K, V> {
+    /// Collects the contents of this map into a vector of tuples.
+    ///
+    /// The order of the entries is as if iterating a [`HashMap`] (stochastic).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// map.insert(2, Box::new("b"));
+    /// let mut tuple_vec = map.into_tuple_vec();
+    /// tuple_vec.sort();
+    ///
+    /// assert_eq!(tuple_vec, vec![(1, Box::new("a")), (2, Box::new("b"))]);
+    /// ```
+    pub fn into_tuple_vec(self) -> Vec<(K, V)> {
+        self.map
+            .into_inner()
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>()
+    }
 
     /// # Examples
     ///
@@ -353,20 +380,6 @@ impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
     }
 }
 
-impl<K, V> IntoIterator for FrozenMap<K, V> {
-    type Item = (K, V);
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.map
-            .into_inner()
-            .unwrap()
-            .into_iter()
-            .collect::<Vec<_>>()
-            .into_iter()
-    }
-}
-
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access
 pub struct FrozenVec<T> {
@@ -432,6 +445,30 @@ impl<T: StableDeref> FrozenVec<T> {
         let vec = self.vec.read().unwrap();
         unsafe { vec.get(index).map(|x| &*(&**x as *const T::Target)) }
     }
+}
+
+impl<T> FrozenVec<T> {
+    /// Collects the contents of this map into a normal vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenVec;
+    ///
+    /// let map = FrozenVec::new();
+    /// map.push("a");
+    /// map.push("b");
+    /// let tuple_vec = map.into_vec();
+    ///
+    /// assert_eq!(tuple_vec, vec!["a", "b"]);
+    /// ```
+    pub fn into_vec(self) -> Vec<T> {
+        self.vec
+            .into_inner()
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>()
+    }
 
     // TODO add more
 }
@@ -451,15 +488,6 @@ impl<T> Default for FrozenVec<T> {
         Self {
             vec: Default::default(),
         }
-    }
-}
-
-impl<T> IntoIterator for FrozenVec<T> {
-    type Item = T;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.vec.into_inner().unwrap().into_iter()
     }
 }
 
@@ -730,6 +758,28 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
         let ret = map.get(k).map(f);
         ret
     }
+}
+
+impl<K, V> FrozenBTreeMap<K, V> {
+    /// Collects the contents of this map into a vector of tuples.
+    ///
+    /// The order of the entries is as if iterating a [`BTreeMap`] (ordered by key).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenBTreeMap;
+    ///
+    /// let map = FrozenBTreeMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// map.insert(2, Box::new("b"));
+    /// let tuple_vec = map.into_tuple_vec();
+    ///
+    /// assert_eq!(tuple_vec, vec![(1, Box::new("a")), (2, Box::new("b"))]);
+    /// ```
+    pub fn into_tuple_vec(self) -> Vec<(K, V)> {
+        self.0.into_inner().unwrap().into_iter().collect::<Vec<_>>()
+    }
 
     /// # Examples
     ///
@@ -804,19 +854,5 @@ impl<K: Clone + Ord, V: StableDeref> FromIterator<(K, V)> for FrozenBTreeMap<K, 
 impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl<K, V> IntoIterator for FrozenBTreeMap<K, V> {
-    type Item = (K, V);
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0
-            .into_inner()
-            .unwrap()
-            .into_iter()
-            .collect::<Vec<_>>()
-            .into_iter()
     }
 }

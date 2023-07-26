@@ -124,7 +124,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
         self.in_use.set(false);
         ret
     }
+}
 
+impl<T, S> FrozenIndexSet<T, S> {
     pub fn into_set(self) -> IndexSet<T, S> {
         self.set.into_inner()
     }
@@ -176,18 +178,5 @@ impl<T: Eq + Hash, S: Default + BuildHasher> FromIterator<T> for FrozenIndexSet<
 impl<T: Eq + Hash, S: Default> Default for FrozenIndexSet<T, S> {
     fn default() -> Self {
         Self::from(IndexSet::default())
-    }
-}
-
-impl<T, S> IntoIterator for FrozenIndexSet<T, S> {
-    type Item = T;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.set
-            .into_inner()
-            .into_iter()
-            .collect::<Vec<_>>()
-            .into_iter()
     }
 }

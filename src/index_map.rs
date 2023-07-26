@@ -136,6 +136,28 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
         self.in_use.set(false);
         ret
     }
+}
+
+impl<K, V, S> FrozenIndexMap<K, V, S> {
+    /// Collects the contents of this map into a vector of tuples.
+    ///
+    /// The order of the entries is as if iterating an [`IndexMap`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenIndexMap;
+    ///
+    /// let map = FrozenIndexMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// map.insert(2, Box::new("b"));
+    /// let tuple_vec = map.into_tuple_vec();
+    ///
+    /// assert_eq!(tuple_vec, vec![(1, Box::new("a")), (2, Box::new("b"))]);
+    /// ```
+    pub fn into_tuple_vec(self) -> Vec<(K, V)> {
+        self.map.into_inner().into_iter().collect::<Vec<_>>()
+    }
 
     pub fn into_map(self) -> IndexMap<K, V, S> {
         self.map.into_inner()
@@ -211,18 +233,5 @@ impl<K: Eq + Hash, V, S: Default> Default for FrozenIndexMap<K, V, S> {
             map: UnsafeCell::new(Default::default()),
             in_use: Cell::new(false),
         }
-    }
-}
-
-impl<K, V, S> IntoIterator for FrozenIndexMap<K, V, S> {
-    type Item = (K, V);
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.map
-            .into_inner()
-            .into_iter()
-            .collect::<Vec<_>>()
-            .into_iter()
     }
 }
