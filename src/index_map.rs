@@ -136,6 +136,28 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
         self.in_use.set(false);
         ret
     }
+}
+
+impl<K, V, S> FrozenIndexMap<K, V, S> {
+    /// Collects the contents of this map into a vector of tuples.
+    ///
+    /// The order of the entries is as if iterating an [`IndexMap`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenIndexMap;
+    ///
+    /// let map = FrozenIndexMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// map.insert(2, Box::new("b"));
+    /// let tuple_vec = map.into_tuple_vec();
+    ///
+    /// assert_eq!(tuple_vec, vec![(1, Box::new("a")), (2, Box::new("b"))]);
+    /// ```
+    pub fn into_tuple_vec(self) -> Vec<(K, V)> {
+        self.map.into_inner().into_iter().collect::<Vec<_>>()
+    }
 
     pub fn into_map(self) -> IndexMap<K, V, S> {
         self.map.into_inner()
@@ -172,11 +194,11 @@ impl<K, V, S> From<IndexMap<K, V, S>> for FrozenIndexMap<K, V, S> {
 }
 
 impl<Q: ?Sized, K: Eq + Hash, V: StableDeref, S: BuildHasher> Index<&Q> for FrozenIndexMap<K, V, S>
-    where
-        Q: Eq + Hash,
-        K: Eq + Hash + Borrow<Q>,
-        V: StableDeref,
-        S: BuildHasher
+where
+    Q: Eq + Hash,
+    K: Eq + Hash + Borrow<Q>,
+    V: StableDeref,
+    S: BuildHasher,
 {
     type Output = V::Target;
 

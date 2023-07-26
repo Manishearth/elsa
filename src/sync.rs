@@ -189,6 +189,33 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         let ret = map.get(k).map(f);
         ret
     }
+}
+
+impl<K, V> FrozenMap<K, V> {
+    /// Collects the contents of this map into a vector of tuples.
+    ///
+    /// The order of the entries is as if iterating a [`HashMap`] (stochastic).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// map.insert(2, Box::new("b"));
+    /// let mut tuple_vec = map.into_tuple_vec();
+    /// tuple_vec.sort();
+    ///
+    /// assert_eq!(tuple_vec, vec![(1, Box::new("a")), (2, Box::new("b"))]);
+    /// ```
+    pub fn into_tuple_vec(self) -> Vec<(K, V)> {
+        self.map
+            .into_inner()
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>()
+    }
 
     /// # Examples
     ///
@@ -418,6 +445,26 @@ impl<T: StableDeref> FrozenVec<T> {
         let vec = self.vec.read().unwrap();
         unsafe { vec.get(index).map(|x| &*(&**x as *const T::Target)) }
     }
+}
+
+impl<T> FrozenVec<T> {
+    /// Returns the internal vector backing this structure
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenVec;
+    ///
+    /// let map = FrozenVec::new();
+    /// map.push("a");
+    /// map.push("b");
+    /// let tuple_vec = map.into_vec();
+    ///
+    /// assert_eq!(tuple_vec, vec!["a", "b"]);
+    /// ```
+    pub fn into_vec(self) -> Vec<T> {
+        self.vec.into_inner().unwrap()
+    }
 
     // TODO add more
 }
@@ -620,6 +667,8 @@ fn test_non_lockfree() {
     ] {}
 }
 
+// TODO: Implement IntoIterator for LockFreeFrozenVec
+
 /// Append-only threadsafe version of `std::collections::BTreeMap` where
 /// insertion does not require mutable access
 #[derive(Debug)]
@@ -704,6 +753,28 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
         let map = self.0.read().unwrap();
         let ret = map.get(k).map(f);
         ret
+    }
+}
+
+impl<K, V> FrozenBTreeMap<K, V> {
+    /// Collects the contents of this map into a vector of tuples.
+    ///
+    /// The order of the entries is as if iterating a [`BTreeMap`] (ordered by key).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::sync::FrozenBTreeMap;
+    ///
+    /// let map = FrozenBTreeMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// map.insert(2, Box::new("b"));
+    /// let tuple_vec = map.into_tuple_vec();
+    ///
+    /// assert_eq!(tuple_vec, vec![(1, Box::new("a")), (2, Box::new("b"))]);
+    /// ```
+    pub fn into_tuple_vec(self) -> Vec<(K, V)> {
+        self.0.into_inner().unwrap().into_iter().collect::<Vec<_>>()
     }
 
     /// # Examples

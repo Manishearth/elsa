@@ -124,7 +124,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
         self.in_use.set(false);
         ret
     }
+}
 
+impl<T, S> FrozenIndexSet<T, S> {
     pub fn into_set(self) -> IndexSet<T, S> {
         self.set.into_inner()
     }
