@@ -448,7 +448,7 @@ impl<T: StableDeref> FrozenVec<T> {
 }
 
 impl<T> FrozenVec<T> {
-    /// Collects the contents of this map into a normal vector.
+    /// Returns the internal vector backing this structure
     ///
     /// # Examples
     ///
