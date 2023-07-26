@@ -220,6 +220,22 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
         map.is_empty()
     }
 
+    /// # Examples
+    /// 
+    /// ```
+    /// use elsa::sync::FrozenMap;
+    /// use std::collections::HashMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// map.insert(2, Box::new("b"));
+    /// 
+    /// let map: HashMap<usize, Box<&str>> = map.into_map();
+    /// ```
+    pub fn into_map(self) -> HashMap<K, V> {
+        self.map.into_inner().unwrap()
+    }
+
     // TODO add more
 }
 
