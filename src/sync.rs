@@ -15,6 +15,7 @@ use std::hash::Hash;
 use std::iter::{FromIterator, IntoIterator};
 use std::ops::Index;
 
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicPtr;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -487,25 +488,41 @@ impl<T> Default for FrozenVec<T> {
     }
 }
 
+const fn buffer_size(idx: usize) -> usize {
+    3 << (idx * 2)
+}
+
+const fn prior_total_buffer_size(idx: usize) -> usize {
+    (1 << (idx * 2)) - 1
+}
+
+const fn buffer_index(i: usize) -> usize {
+    (((65 - (i + 1).leading_zeros()) >> 1) - 1) as usize
+}
+
+const NUM_BUFFERS: usize = (usize::BITS >> 2) as usize;
+
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access.
-/// Does not have locks, only allows `Copy` types and will
-/// spinlock on contention. The spinlocks are really rare as
-/// they only happen on reallocation due to a push going over
-/// the capacity.
+/// Does not lock for reading, only allows `Copy` types and
+/// will spinlock on pushes without affecting reads.
 pub struct LockFreeFrozenVec<T: Copy> {
-    data: AtomicPtr<T>,
+    data: [AtomicPtr<T>; NUM_BUFFERS],
     len: AtomicUsize,
-    cap: AtomicUsize,
+    locked: AtomicBool,
 }
 
 impl<T: Copy> Drop for LockFreeFrozenVec<T> {
     fn drop(&mut self) {
-        let cap = *self.cap.get_mut();
-        let layout = Self::layout(cap);
-        if cap != 0 {
+        for i in 0..NUM_BUFFERS {
+            let layout = Self::layout(buffer_size(i));
             unsafe {
-                std::alloc::dealloc((*self.data.get_mut()).cast(), layout);
+                let ptr = *self.data[i].get_mut();
+                if ptr.is_null() {
+                    break;
+                } else {
+                    std::alloc::dealloc(ptr.cast(), layout);
+                }
             }
         }
     }
@@ -514,39 +531,30 @@ impl<T: Copy> Drop for LockFreeFrozenVec<T> {
 impl<T: Copy> Default for LockFreeFrozenVec<T> {
     fn default() -> Self {
         Self {
-            // FIXME: use `std::ptr::invalid_mut()` once that is stable.
-            data: AtomicPtr::new(std::mem::align_of::<T>() as *mut T),
+            data: [Self::NULL; NUM_BUFFERS],
             len: AtomicUsize::new(0),
-            cap: AtomicUsize::new(0),
+            locked: AtomicBool::new(false),
         }
     }
 }
 
 impl<T: Copy> LockFreeFrozenVec<T> {
+    const NULL: AtomicPtr<T> = AtomicPtr::new(std::ptr::null_mut());
     pub fn new() -> Self {
         Default::default()
     }
 
-    pub fn with_capacity(cap: usize) -> Self {
-        Self {
-            data: AtomicPtr::new(unsafe { std::alloc::alloc(Self::layout(cap)) }.cast()),
-            len: AtomicUsize::new(0),
-            cap: AtomicUsize::new(cap),
-        }
-    }
-
-    fn lock<U>(&self, f: impl FnOnce(&mut *mut T) -> U) -> U {
-        let mut ptr;
-        loop {
-            ptr = self.data.swap(std::ptr::null_mut(), Ordering::Acquire);
-            if !ptr.is_null() {
-                // Wheeeee spinlock
-                break;
-            }
+    /// Obtains a write lock that ensures other writing threads
+    /// wait for us to finish. Reading threads are unaffected and
+    /// can concurrently read while we push a new element.
+    fn lock<U>(&self, f: impl FnOnce() -> U) -> U {
+        while self.locked.swap(true, Ordering::Acquire) {
+            // Wheeeee spinlock
+            std::hint::spin_loop();
         }
 
-        let ret = f(&mut ptr);
-        self.data.store(ptr, Ordering::Release);
+        let ret = f();
+        self.locked.store(false, Ordering::Release);
         ret
     }
 
@@ -567,44 +575,33 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         {
             Self::NOT_ZST
         }
-        self.lock(|ptr| {
+        self.lock(|| {
             // These values must be consistent with the pointer we got.
             let len = self.len.load(Ordering::Acquire);
-            let cap = self.cap.load(Ordering::Acquire);
-            if len >= cap {
-                if cap == 0 {
-                    // No memory allocated yet
-                    let layout = Self::layout(128);
-                    // SAFETY: `LockFreeFrozenVec` statically rejects zsts
-                    unsafe {
-                        *ptr = std::alloc::alloc(layout).cast::<T>();
-                    }
-                    // This is written before the end of the `lock` closure, so no one will observe this
-                    // until the data pointer has been updated anyway.
-                    self.cap.store(128, Ordering::Release);
-                } else {
-                    // Out of memory, realloc with double the capacity
-                    let layout = Self::layout(cap);
-                    let new_size = layout.size() * 2;
-                    // SAFETY: `LockFreeFrozenVec` statically rejects zsts and the input `ptr` has always been
-                    // allocated at the size stated in `cap`.
-                    unsafe {
-                        *ptr = std::alloc::realloc((*ptr).cast(), layout, new_size).cast::<T>();
-                    }
-                    // This is written before the end of the `lock` closure, so no one will observe this
-                    // until the data pointer has been updated anyway.
-                    self.cap.store(cap * 2, Ordering::Release);
+            let buffer_idx = buffer_index(len);
+            let mut ptr = self.data[buffer_idx].load(Ordering::Acquire);
+            if ptr.is_null() {
+                // Out of memory, allocate more
+                let layout = Self::layout(buffer_size(buffer_idx));
+                // SAFETY: `LockFreeFrozenVec` statically rejects zsts and the input `ptr` has always been
+                // allocated at the size stated in `cap`.
+                unsafe {
+                    ptr = std::alloc::alloc(layout).cast::<T>();
                 }
+
                 assert!(!ptr.is_null());
+
+                self.data[buffer_idx].store(ptr, Ordering::Release);
             }
+            let local_index = len - prior_total_buffer_size(buffer_idx);
             unsafe {
-                ptr.add(len).write(val);
+                ptr.add(local_index).write(val);
             }
             // This is written before updating the data pointer. Other `push` calls cannot observe this,
             // because they are blocked on aquiring the data pointer before they ever read the `len`.
-            // `get` may read the length before actually aquiring the data pointer lock, but that is fine,
-            // as once it is able to aquire the lock, there will be actually the right number of elements
-            // stored.
+            // `get` may read the length without synchronization, but that is fine,
+            // as there will be actually the right number of elements stored, or less elements,
+            // in which case you get a spurious `None`.
             self.len.store(len + 1, Ordering::Release);
             len
         })
@@ -612,14 +609,17 @@ impl<T: Copy> LockFreeFrozenVec<T> {
 
     pub fn get(&self, index: usize) -> Option<T> {
         // The length can only grow, so just doing the length check
-        // independently of the `lock` and read is fine. Worst case we
+        // independently of the  read is fine. Worst case we
         // read an old length value and end up returning `None` even if
         // another thread already inserted the value.
-        let len = self.len.load(Ordering::Relaxed);
+        let len = self.len.load(Ordering::Acquire);
         if index >= len {
             return None;
         }
-        self.lock(|ptr| Some(unsafe { ptr.add(index).read() }))
+        let buffer_idx = buffer_index(index);
+        let buffer_ptr = self.data[buffer_idx].load(Ordering::Acquire);
+        let local_index = index - prior_total_buffer_size(buffer_idx);
+        Some(unsafe { *buffer_ptr.add(local_index) })
     }
 
     pub fn is_empty(&self) -> bool {
@@ -632,43 +632,34 @@ fn test_non_lockfree() {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     struct Moo(i32);
 
-    for vec in [
-        LockFreeFrozenVec::new(),
-        LockFreeFrozenVec::with_capacity(1),
-        LockFreeFrozenVec::with_capacity(2),
-        LockFreeFrozenVec::with_capacity(1000),
-    ] {
-        assert_eq!(vec.get(1), None);
+    let vec = LockFreeFrozenVec::new();
 
-        vec.push(Moo(1));
-        let i = vec.push(Moo(2));
-        vec.push(Moo(3));
+    assert_eq!(vec.get(1), None);
 
-        assert_eq!(vec.get(i), Some(Moo(2)));
+    vec.push(Moo(1));
+    let i = vec.push(Moo(2));
+    vec.push(Moo(3));
 
-        std::thread::scope(|s| {
-            s.spawn(|| {
-                for i in 0..1000 {
-                    vec.push(Moo(i));
-                }
-            });
-            s.spawn(|| {
-                for i in 0..1000 {
-                    vec.push(Moo(i));
-                }
-            });
-            for i in 0..2000 {
-                while vec.get(i).is_none() {}
+    assert_eq!(vec.get(i), Some(Moo(2)));
+
+    std::thread::scope(|s| {
+        s.spawn(|| {
+            for i in 0..1000 {
+                vec.push(Moo(i));
             }
         });
-    }
+        s.spawn(|| {
+            for i in 0..1000 {
+                vec.push(Moo(i));
+            }
+        });
+        for i in 0..2000 {
+            while vec.get(i).is_none() {}
+        }
+    });
+
     // Test dropping empty vecs
-    for _ in [
-        LockFreeFrozenVec::<()>::new(),
-        LockFreeFrozenVec::with_capacity(1),
-        LockFreeFrozenVec::with_capacity(2),
-        LockFreeFrozenVec::with_capacity(1000),
-    ] {}
+    LockFreeFrozenVec::<()>::new();
 }
 
 // TODO: Implement IntoIterator for LockFreeFrozenVec
