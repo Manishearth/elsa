@@ -621,6 +621,10 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         }
         self.lock(|ptr| Some(unsafe { ptr.add(index).read() }))
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len.load(Ordering::Relaxed) == 0
+    }
 }
 
 #[test]
