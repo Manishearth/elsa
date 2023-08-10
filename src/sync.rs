@@ -26,6 +26,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Append-only threadsafe version of `std::collections::HashMap` where
 /// insertion does not require mutable access
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct FrozenMap<K, V> {
     map: RwLock<HashMap<K, V>>,
 }
@@ -381,6 +382,20 @@ impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
     /// the 'frozen' contents.
     fn as_mut(&mut self) -> &mut HashMap<K, V> {
         self.map.get_mut().unwrap()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, K, V> Deserialize<'de> for FrozenMap<K, V>
+where
+    K: Deserialize<'de> + Eq + Hash,
+    V: Deserialize<'de>,
+{
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let map = HashMap::<K, V>::deserialize(deserializer)?;
+        Ok(Self {
+            map: RwLock::new(map),
+        })
     }
 }
 
