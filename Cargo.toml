@@ -13,6 +13,7 @@ categories = ["data-structures", "caching"]
 [dependencies]
 stable_deref_trait = "1.1.1"
 indexmap = { version = "1.6", optional = true }
+serde = { version = "1.0.171", features = ["derive"], optional = true }
 
 [package.metadata.docs.rs]
 features = ["indexmap"]
@@ -21,3 +22,7 @@ features = ["indexmap"]
 name = "string_interner"
 path = "examples/string_interner.rs"
 required-features = ["indexmap"]
+
+[features]
+default = []
+serde = ["dep:serde", "indexmap/serde"]
