@@ -224,7 +224,6 @@ impl<T: Clone> Clone for FrozenVec<T> {
     }
 }
 
-
 impl<T> From<Vec<T>> for FrozenVec<T> {
     fn from(vec: Vec<T>) -> Self {
         Self {

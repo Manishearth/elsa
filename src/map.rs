@@ -272,10 +272,14 @@ impl<K: Eq + Hash, V, S: Default> Default for FrozenMap<K, V, S> {
 
 impl<K: Clone, V: Clone, S: Clone> Clone for FrozenMap<K, V, S> {
     fn clone(&self) -> Self {
-        Self {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let self_clone = Self {
             map: unsafe { self.map.get().as_ref().unwrap() }.clone().into(),
-            in_use: self.in_use.clone(),
-        }
+            in_use: Cell::from(false),
+        };
+        self.in_use.set(false);
+        return self_clone;
     }
 }
 
@@ -507,9 +511,13 @@ impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
 
 impl<K: Clone, V: Clone> Clone for FrozenBTreeMap<K, V> {
     fn clone(&self) -> Self {
-        Self {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let self_clone = Self {
             map: unsafe { self.map.get().as_ref().unwrap() }.clone().into(),
-            in_use: self.in_use.clone(),
-        }
+            in_use: Cell::from(false),
+        };
+        self.in_use.set(false);
+        return self_clone;
     }
 }
