@@ -9,6 +9,9 @@ use std::ops::Index;
 
 use stable_deref_trait::StableDeref;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 /// Append-only version of `std::collections::HashMap` where
 /// insertion does not require mutable access
 pub struct FrozenMap<K, V, S = RandomState> {
@@ -270,6 +273,40 @@ impl<K: Eq + Hash, V, S: Default> Default for FrozenMap<K, V, S> {
     }
 }
 
+#[cfg(feature = "serde")]
+impl<K, V, S> Serialize for FrozenMap<K, V, S>
+where
+    K: Serialize + Eq + Hash,
+    V: Serialize,
+    S: BuildHasher,
+{
+    fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
+    where
+        Ser: Serializer,
+    {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let map_serialized = unsafe { self.map.get().as_ref().unwrap() }.serialize(serializer);
+        self.in_use.set(false);
+        return map_serialized;
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, K, V, S> Deserialize<'de> for FrozenMap<K, V, S>
+where
+    K: Deserialize<'de> + Eq + Hash,
+    V: Deserialize<'de>,
+    S: BuildHasher + Default,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        HashMap::deserialize(deserializer).map(FrozenMap::from)
+    }
+}
+
 /// Append-only version of `std::collections::BTreeMap` where
 /// insertion does not require mutable access
 pub struct FrozenBTreeMap<K, V> {
@@ -494,4 +531,5 @@ impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
             in_use: Cell::new(false),
         }
     }
+}
 }
