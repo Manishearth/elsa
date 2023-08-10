@@ -21,6 +21,9 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::RwLock;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 /// Append-only threadsafe version of `std::collections::HashMap` where
 /// insertion does not require mutable access
 pub struct FrozenMap<K, V> {
@@ -383,6 +386,7 @@ impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
 
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
 }
