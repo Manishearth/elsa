@@ -713,9 +713,52 @@ fn test_non_lockfree_unchecked() {
     LockFreeFrozenVec::<()>::new();
 }
 
+#[cfg(feature = "serde")]
+impl<T: Copy + Serialize> Serialize for LockFreeFrozenVec<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeSeq;
+
+        let len = self.len.load(Ordering::Relaxed);
+        let mut seq = serializer.serialize_seq(Some(len))?;
+        for i in 0..len {
+            seq.serialize_element(&self.get(i).unwrap())?;
+        }
+        seq.end()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T: Copy + Deserialize<'de>> Deserialize<'de> for LockFreeFrozenVec<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::{SeqAccess, Visitor};
+        use std::marker::PhantomData;
+
+        struct SeqVisitor<T>(PhantomData<T>);
+
+        impl<'de, T: Copy + Deserialize<'de>> Visitor<'de> for SeqVisitor<T> {
+            type Value = LockFreeFrozenVec<T>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a sequence of elements")
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                let ret = LockFreeFrozenVec::new();
+                while let Some(elem) = seq.next_element()? {
+                    ret.push(elem);
+                }
+                Ok(ret)
+            }
+        }
+
+        deserializer.deserialize_seq(SeqVisitor(PhantomData))
+    }
+}
+
 #[test]
 fn test_non_lockfree() {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     struct Moo(i32);
 
     let vec = LockFreeFrozenVec::new();
@@ -746,6 +789,19 @@ fn test_non_lockfree() {
 
     // Test dropping empty vecs
     LockFreeFrozenVec::<()>::new();
+
+    #[cfg(feature = "serde")]
+    {
+        let vec = LockFreeFrozenVec::new();
+        vec.push(Moo(1));
+        vec.push(Moo(2));
+        vec.push(Moo(3));
+        let json = serde_json::to_string(&vec).unwrap();
+        let vec = serde_json::from_str::<LockFreeFrozenVec<Moo>>(&json).unwrap();
+        assert_eq!(vec.get(0), Some(Moo(1)));
+        assert_eq!(vec.get(1), Some(Moo(2)));
+        assert_eq!(vec.get(2), Some(Moo(3)));
+    }
 }
 
 // TODO: Implement IntoIterator for LockFreeFrozenVec
