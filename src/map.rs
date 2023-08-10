@@ -532,4 +532,35 @@ impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
         }
     }
 }
+
+#[cfg(feature = "serde")]
+impl<K, V> Serialize for FrozenBTreeMap<K, V>
+where
+    K: Serialize + Eq + Hash,
+    V: Serialize,
+{
+    fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
+    where
+        Ser: Serializer,
+    {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let map_serialized = unsafe { self.map.get().as_ref().unwrap() }.serialize(serializer);
+        self.in_use.set(false);
+        return map_serialized;
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, K: Clone + Ord, V: StableDeref> Deserialize<'de> for FrozenBTreeMap<K, V>
+where
+    K: Deserialize<'de> + Eq + Hash,
+    V: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        BTreeMap::deserialize(deserializer).map(FrozenBTreeMap::from)
+    }
 }
