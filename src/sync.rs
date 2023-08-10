@@ -828,6 +828,7 @@ fn test_non_lockfree() {
 /// Append-only threadsafe version of `std::collections::BTreeMap` where
 /// insertion does not require mutable access
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct FrozenBTreeMap<K, V>(RwLock<BTreeMap<K, V>>);
 
 impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
@@ -1006,5 +1007,13 @@ impl<K: Clone + Ord, V: StableDeref> FromIterator<(K, V)> for FrozenBTreeMap<K, 
 impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for FrozenBTreeMap<String, String> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let map = BTreeMap::<String, String>::deserialize(deserializer)?;
+        Ok(map.into())
     }
 }
