@@ -667,6 +667,50 @@ impl<T: Copy> LockFreeFrozenVec<T> {
     pub fn is_empty(&self) -> bool {
         self.len.load(Ordering::Relaxed) == 0
     }
+
+    /// Load an element (if it exists). This operation is lock-free and
+    /// performs no synchronized atomic operations. This is a useful primitive to
+    /// implement your own data structure with newtypes around the index.
+    pub unsafe fn get_unchecked(&self, index: usize) -> T {
+        let buffer_idx = buffer_index(index);
+        let buffer_ptr = self.data[buffer_idx].load(Ordering::Relaxed);
+        let local_index = index - prior_total_buffer_size(buffer_idx);
+        unsafe { *buffer_ptr.add(local_index) }
+    }
+}
+
+#[test]
+fn test_non_lockfree_unchecked() {
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    struct Moo(i32);
+
+    let vec = LockFreeFrozenVec::new();
+
+    let idx_set = std::sync::Mutex::new(std::collections::HashSet::new());
+
+    std::thread::scope(|s| {
+        s.spawn(|| {
+            for i in 0..1000 {
+                idx_set.lock().unwrap().insert(vec.push(Moo(i)));
+            }
+        });
+        s.spawn(|| {
+            for i in 0..1000 {
+                idx_set.lock().unwrap().insert(vec.push(Moo(i)));
+            }
+        });
+        for _ in 0..2000 {
+            let idxes = std::mem::take(&mut *idx_set.lock().unwrap());
+            for idx in idxes {
+                unsafe {
+                    vec.get_unchecked(idx);
+                }
+            }
+        }
+    });
+
+    // Test dropping empty vecs
+    LockFreeFrozenVec::<()>::new();
 }
 
 #[test]
