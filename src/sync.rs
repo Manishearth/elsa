@@ -11,18 +11,20 @@ use std::alloc::Layout;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::convert::AsMut;
 use std::hash::Hash;
 use std::iter::{FromIterator, IntoIterator};
 use std::ops::Index;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicPtr;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::AtomicUsize; 
 use std::sync::atomic::Ordering;
 use std::sync::RwLock;
 
 /// Append-only threadsafe version of `std::collections::HashMap` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 pub struct FrozenMap<K, V> {
     map: RwLock<HashMap<K, V>>,
 }
@@ -371,7 +373,7 @@ impl<K: Eq + Hash, V: Copy> FrozenMap<K, V> {
     }
 }
 
-impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
+impl<K, V> AsMut<HashMap<K, V>> for FrozenMap<K, V> {
     /// Get mutable access to the underlying [`HashMap`].
     ///
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using
@@ -383,6 +385,7 @@ impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
 
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
 }
@@ -470,7 +473,7 @@ impl<T> FrozenVec<T> {
     // TODO add more
 }
 
-impl<T> std::convert::AsMut<Vec<T>> for FrozenVec<T> {
+impl<T> AsMut<Vec<T>> for FrozenVec<T> {
     /// Get mutable access to the underlying vector.
     ///
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using
@@ -539,6 +542,7 @@ const NUM_BUFFERS: usize = (usize::BITS >> 2) as usize;
 /// Note that this data structure is `64` pointers large on
 /// 64 bit systems,
 /// in contrast to `Vec` which is `3` pointers large.
+#[derive(Debug)]
 pub struct LockFreeFrozenVec<T: Copy> {
     data: [AtomicPtr<T>; NUM_BUFFERS],
     len: AtomicUsize,

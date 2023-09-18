@@ -3,6 +3,7 @@ use std::cell::{Cell, UnsafeCell};
 use std::collections::hash_map::RandomState;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::convert::AsMut;
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::Index;
@@ -11,6 +12,7 @@ use stable_deref_trait::StableDeref;
 
 /// Append-only version of `std::collections::HashMap` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 pub struct FrozenMap<K, V, S = RandomState> {
     map: UnsafeCell<HashMap<K, V, S>>,
     /// Eq/Hash implementations can have side-effects, and using Rc it is possible
@@ -208,7 +210,7 @@ impl<K: Eq + Hash + StableDeref, V: StableDeref, S: BuildHasher> FrozenMap<K, V,
     }
 }
 
-impl<K, V, S> std::convert::AsMut<HashMap<K, V, S>> for FrozenMap<K, V, S> {
+impl<K, V, S> AsMut<HashMap<K, V, S>> for FrozenMap<K, V, S> {
     /// Get mutable access to the underlying [`HashMap`].
     ///
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using
@@ -272,6 +274,7 @@ impl<K: Eq + Hash, V, S: Default> Default for FrozenMap<K, V, S> {
 
 /// Append-only version of `std::collections::BTreeMap` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 pub struct FrozenBTreeMap<K, V> {
     map: UnsafeCell<BTreeMap<K, V>>,
     /// Eq/Hash implementations can have side-effects, and using Rc it is possible
@@ -435,7 +438,7 @@ impl<K, V> FrozenBTreeMap<K, V> {
     // TODO add more
 }
 
-impl<K, V> std::convert::AsMut<BTreeMap<K, V>> for FrozenBTreeMap<K, V> {
+impl<K, V> AsMut<BTreeMap<K, V>> for FrozenBTreeMap<K, V> {
     /// Get mutable access to the underlying [`HashMap`].
     ///
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using

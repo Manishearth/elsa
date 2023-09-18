@@ -1,5 +1,6 @@
 use std::cell::UnsafeCell;
 use std::cmp::Ordering;
+use std::convert::AsMut;
 use std::iter::FromIterator;
 use std::ops::Index;
 
@@ -7,6 +8,7 @@ use stable_deref_trait::StableDeref;
 
 /// Append-only version of `std::vec::Vec` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 pub struct FrozenVec<T> {
     vec: UnsafeCell<Vec<T>>,
     // XXXManishearth do we need a reentrancy guard here as well?
@@ -108,7 +110,7 @@ impl<T: StableDeref> FrozenVec<T> {
         }
     }
     /// Returns an iterator over the vector.
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         self.into_iter()
     }
 }
@@ -200,7 +202,7 @@ impl<T: StableDeref> FrozenVec<T> {
     // TODO add more
 }
 
-impl<T> std::convert::AsMut<Vec<T>> for FrozenVec<T> {
+impl<T> AsMut<Vec<T>> for FrozenVec<T> {
     /// Get mutable access to the underlying vector.
     ///
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using
@@ -250,6 +252,7 @@ impl<A> FromIterator<A> for FrozenVec<A> {
 /// Iterator over FrozenVec, obtained via `.iter()`
 ///
 /// It is safe to push to the vector during iteration
+#[derive(Debug)]
 pub struct Iter<'a, T> {
     vec: &'a FrozenVec<T>,
     idx: usize,
