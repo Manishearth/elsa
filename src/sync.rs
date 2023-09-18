@@ -65,6 +65,15 @@ impl<K, V> FrozenMap<K, V> {
     }
 }
 
+impl<T> From<Vec<T>> for FrozenVec<T> {
+    fn from(vec: Vec<T>) -> Self {
+        Self {
+            vec: RwLock::new(vec),
+        }
+    }
+}
+
+
 impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     // these should never return &K or &V
     // these should never delete any entries
@@ -492,6 +501,53 @@ impl<T: StableDeref> FrozenVec<T> {
         let vec = self.vec.read().unwrap();
         unsafe { vec.get(index).map(|x| &*(&**x as *const T::Target)) }
     }
+
+    /// Returns an iterator over the vector.
+    pub fn iter(&self) -> Iter<'_, T> {
+        self.into_iter()
+    }    
+}
+
+/// Iterator over FrozenVec, obtained via `.iter()`
+///
+/// It is safe to push to the vector during iteration
+#[derive(Debug)]
+pub struct Iter<'a, T> {
+    vec: &'a FrozenVec<T>,
+    idx: usize,
+}
+
+impl<'a, T: StableDeref> Iterator for Iter<'a, T> {
+    type Item = &'a T::Target;
+    fn next(&mut self) -> Option<&'a T::Target> {
+        if let Some(ret) = self.vec.get(self.idx) {
+            self.idx += 1;
+            Some(ret)
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T: StableDeref> IntoIterator for &'a FrozenVec<T> {
+    type Item = &'a T::Target;
+    type IntoIter = Iter<'a, T>;
+    fn into_iter(self) -> Iter<'a, T> {
+        Iter { vec: self, idx: 0 }
+    }
+}
+
+#[test]
+fn test_iteration() {
+    let vec = vec!["a", "b", "c", "d"];
+    let frozen: FrozenVec<_> = vec.clone().into();
+
+    assert_eq!(vec, frozen.iter().collect::<Vec<_>>());
+    for (e1, e2) in vec.iter().zip(frozen.iter()) {
+        assert_eq!(*e1, e2);
+    }
+
+    assert_eq!(vec.len(), frozen.iter().count())
 }
 
 impl<T> FrozenVec<T> {
