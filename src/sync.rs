@@ -873,7 +873,11 @@ fn test_non_lockfree() {
 /// Append-only threadsafe version of `std::collections::BTreeMap` where
 /// insertion does not require mutable access
 #[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(bound(deserialize = "K: Ord + Deserialize<'de>, V: Deserialize<'de>"))
+)]
 pub struct FrozenBTreeMap<K, V>(RwLock<BTreeMap<K, V>>);
 
 impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
@@ -1055,10 +1059,24 @@ impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
     }
 }
 
-#[cfg(feature = "serde")]
-impl<'de> Deserialize<'de> for FrozenBTreeMap<String, String> {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let map = BTreeMap::<String, String>::deserialize(deserializer)?;
-        Ok(map.into())
+impl<K: PartialEq, V: PartialEq> PartialEq for FrozenBTreeMap<K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        let self_ref: &BTreeMap<K, V> = &self.0.read().unwrap();
+        let other_ref: &BTreeMap<K, V> = &other.0.read().unwrap();
+        self_ref == other_ref
+    }
+}
+#[test]
+fn test_sync_frozen_btreemap() {
+    #[cfg(feature = "serde")]
+    {
+        let map = FrozenBTreeMap::new();
+        map.insert(String::from("a"), String::from("b"));
+
+        let map_json = serde_json::to_string(&map).unwrap();
+        assert_eq!(map_json, "{\"a\":\"b\"}");
+
+        let map_serde = serde_json::from_str::<FrozenBTreeMap<String, String>>(&map_json).unwrap();
+        assert_eq!(map, map_serde);
     }
 }
