@@ -495,3 +495,16 @@ impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
         }
     }
 }
+
+impl<K: Eq + Hash, V: PartialEq + StableDeref> PartialEq for FrozenMap<K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        assert!(!self.in_use.get());
+        assert!(!other.in_use.get());
+        self.in_use.set(true);
+        other.in_use.set(true);
+        let ret = self.map.get() == other.map.get();
+        self.in_use.set(false);
+        other.in_use.set(false);
+        ret
+    }
+}
