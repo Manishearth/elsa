@@ -26,7 +26,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Append-only threadsafe version of `std::collections::HashMap` where
 /// insertion does not require mutable access
-#[cfg_attr(feature = "serde", derive(Serialize))]
+#[derive(Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(bound(deserialize = "K: Eq + Hash + Deserialize<'de>, V: Deserialize<'de>"))
+)]
 pub struct FrozenMap<K, V> {
     map: RwLock<HashMap<K, V>>,
 }
@@ -385,17 +390,26 @@ impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
     }
 }
 
-#[cfg(feature = "serde")]
-impl<'de, K, V> Deserialize<'de> for FrozenMap<K, V>
-where
-    K: Deserialize<'de> + Eq + Hash,
-    V: Deserialize<'de>,
-{
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let map = HashMap::<K, V>::deserialize(deserializer)?;
-        Ok(Self {
-            map: RwLock::new(map),
-        })
+impl<K: PartialEq + Eq + Hash, V: PartialEq> PartialEq for FrozenMap<K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        let self_ref: &HashMap<K, V> = &self.map.read().unwrap();
+        let other_ref: &HashMap<K, V> = &other.map.read().unwrap();
+        self_ref == other_ref
+    }
+}
+
+#[test]
+fn test_sync_frozen_map() {
+    #[cfg(feature = "serde")]
+    {
+        let map = FrozenMap::new();
+        map.insert(String::from("a"), String::from("b"));
+
+        let map_json = serde_json::to_string(&map).unwrap();
+        assert_eq!(map_json, "{\"map\":{\"a\":\"b\"}}");
+
+        let map_serde = serde_json::from_str::<FrozenMap<String, String>>(&map_json).unwrap();
+        assert_eq!(map, map_serde);
     }
 }
 
