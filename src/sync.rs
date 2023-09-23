@@ -401,6 +401,7 @@ where
 
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
@@ -504,6 +505,36 @@ impl<T> Default for FrozenVec<T> {
         Self {
             vec: Default::default(),
         }
+    }
+}
+
+impl<T: Clone> Clone for FrozenVec<T> {
+    fn clone(&self) -> Self {
+        Self {
+            vec: self.vec.read().unwrap().clone().into(),
+        }
+    }
+}
+
+impl PartialEq for FrozenVec<String> {
+    fn eq(&self, other: &Self) -> bool {
+        let self_ref: &Vec<String> = &self.vec.read().unwrap();
+        let other_ref: &Vec<String> = &other.vec.read().unwrap();
+        self_ref == other_ref
+    }
+}
+
+#[test]
+fn test_sync_frozen_vec() {
+    #[cfg(feature = "serde")]
+    {
+        let vec = FrozenVec::new();
+        vec.push(String::from("a"));
+
+        let vec_json = serde_json::to_string(&vec).unwrap();
+        assert_eq!(vec_json, "{\"vec\":[\"a\"]}");
+        let vec_serde = serde_json::from_str::<FrozenVec<String>>(&vec_json).unwrap();
+        assert_eq!(vec, vec_serde);
     }
 }
 
