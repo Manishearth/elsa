@@ -696,6 +696,26 @@ impl<T: Copy> LockFreeFrozenVec<T> {
     }
 }
 
+impl<T: Copy + PartialEq> PartialEq for LockFreeFrozenVec<T> {
+    fn eq(&self, other: &Self) -> bool {
+        // first check the length
+        let self_len = self.len.load(Ordering::Acquire);
+        let other_len = other.len.load(Ordering::Acquire);
+        if self_len != other_len {
+            return false;
+        }
+
+        // since the lengths are the same, just check the elements in order
+        for index in 0..self_len {
+            // the indices are in bounds, so this is safe
+            if unsafe { self.get_unchecked(index) } != unsafe { other.get_unchecked(index) } {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
 #[test]
 fn test_non_lockfree_unchecked() {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
