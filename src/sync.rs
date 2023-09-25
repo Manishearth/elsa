@@ -705,9 +705,10 @@ impl<T: Copy + PartialEq> PartialEq for LockFreeFrozenVec<T> {
             return false;
         }
 
-        // since the lengths are the same, just check the elements in order
+        // Since the lengths are the same, just check the elements in order
+        // this assumes that the vectors don't change while equality is being checked
         for index in 0..self_len {
-            // the indices are in bounds, so this is safe
+            // This is safe because the indices are in bounds (for `LockFreeFrozenVec` the bounds can only grow).
             if unsafe { self.get_unchecked(index) } != unsafe { other.get_unchecked(index) } {
                 return false;
             }
