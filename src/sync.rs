@@ -693,6 +693,40 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         let local_index = index - prior_total_buffer_size(buffer_idx);
         unsafe { *buffer_ptr.add(local_index) }
     }
+
+    /// Run a function on each buffer in the vector.
+    ///
+    /// ## Arguments
+    /// - `func`: a function that takes a pointer to the buffer, the buffer size, and the buffer index
+    ///
+    /// ## Safety
+    /// `func` is provided with the raw constant pointer to the buffer,
+    /// however, the pointer is expected to be valid as the null check is done before calling `func`.
+    /// To access the data in the buffer, make sure the buffer size (the second argument) is respected.
+    ///
+    pub unsafe fn for_each_buffer(&self, func: impl Fn(*const T, usize, usize)) {
+        let len = self.len.load(Ordering::Acquire);
+        // handle the empty case
+        if len == 0 {
+            return;
+        }
+
+        // for each buffer, run the function
+        for buffer_index in 0..NUM_BUFFERS {
+            // get the buffer size and index
+            let buffer_size = buffer_size(buffer_index);
+
+            // get the buffer pointer
+            let buffer_ptr = self.data[buffer_index].load(Ordering::Acquire);
+            if buffer_ptr.is_null() {
+                // no data in this buffer, so we're done
+                break;
+            }
+
+            // run the function
+            func(buffer_ptr, buffer_size, buffer_index);
+        }
+    }
 }
 
 #[test]
@@ -737,30 +771,20 @@ impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
             return Self::default();
         }
 
-        // copy the data
         let data = [Self::NULL; NUM_BUFFERS];
         // for each buffer, copy the data
-        for i in 0..NUM_BUFFERS {
-            // get the buffer size and index
-            let buffer_size = buffer_size(i);
-            let buffer_idx = buffer_index(buffer_size - 1);
-            // get the buffer pointer
-            let buffer_ptr = self.data[buffer_idx].load(Ordering::Acquire);
-            if buffer_ptr.is_null() {
-                // no data in this buffer
-                break;
-            }
-            // allocate a new buffer
-            let layout = Self::layout(buffer_size);
-            let new_buffer_ptr = unsafe { std::alloc::alloc(layout).cast::<T>() };
-            assert!(!new_buffer_ptr.is_null());
-            // copy the data
-            unsafe {
+        unsafe {
+            self.for_each_buffer(|buffer_ptr, buffer_size, buffer_index| {
+                // allocate a new buffer
+                let layout = Self::layout(buffer_size);
+                let new_buffer_ptr = std::alloc::alloc(layout).cast::<T>();
+                assert!(!new_buffer_ptr.is_null());
+                // copy the data
                 std::ptr::copy_nonoverlapping(buffer_ptr, new_buffer_ptr, buffer_size);
-            }
-            // store the new buffer pointer
-            data[i].store(new_buffer_ptr, Ordering::Release);
-        }
+                // store the new buffer pointer
+                data[buffer_index].store(new_buffer_ptr, Ordering::Release);
+            })
+        };
 
         return Self {
             data,
