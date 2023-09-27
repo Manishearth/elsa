@@ -704,7 +704,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
     /// however, the pointer is expected to be valid as the null check is done before calling `func`.
     /// To access the data in the buffer, make sure the buffer size (the second argument) is respected.
     ///
-    pub unsafe fn for_each_buffer(&self, func: impl Fn(*const T, usize, usize)) {
+    pub unsafe fn for_each_buffer(&self, mut func: impl FnMut(*const T, usize, usize)) {
         let len = self.len.load(Ordering::Acquire);
         // handle the empty case
         if len == 0 {
@@ -771,7 +771,7 @@ impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
             return Self::default();
         }
 
-        let data = [Self::NULL; NUM_BUFFERS];
+        let mut coppied_data = [Self::NULL; NUM_BUFFERS];
         // for each buffer, copy the data
         unsafe {
             self.for_each_buffer(|buffer_ptr, buffer_size, buffer_index| {
@@ -782,12 +782,12 @@ impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
                 // copy the data
                 std::ptr::copy_nonoverlapping(buffer_ptr, new_buffer_ptr, buffer_size);
                 // store the new buffer pointer
-                data[buffer_index].store(new_buffer_ptr, Ordering::Release);
+                *coppied_data[buffer_index].get_mut() = new_buffer_ptr;
             })
         };
 
         return Self {
-            data,
+            data: coppied_data,
             len: AtomicUsize::new(len),
             locked: AtomicBool::new(false),
         };
