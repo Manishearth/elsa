@@ -713,15 +713,15 @@ impl<T: Copy> LockFreeFrozenVec<T> {
 
         // for each buffer, run the function
         for buffer_index in 0..NUM_BUFFERS {
-            // get the buffer size and index
-            let buffer_size = buffer_size(buffer_index);
-
             // get the buffer pointer
             let buffer_ptr = self.data[buffer_index].load(Ordering::Acquire);
             if buffer_ptr.is_null() {
                 // no data in this buffer, so we're done
                 break;
             }
+
+            // get the buffer size and index
+            let buffer_size = buffer_size(buffer_index);
 
             // run the function
             func(buffer_ptr, buffer_size, buffer_index);
@@ -765,12 +765,6 @@ fn test_non_lockfree_unchecked() {
 
 impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
     fn clone(&self) -> Self {
-        let len = self.len.load(Ordering::Acquire);
-        // handle the empty case
-        if len == 0 {
-            return Self::default();
-        }
-
         let mut coppied_data = [Self::NULL; NUM_BUFFERS];
         // for each buffer, copy the data
         unsafe {
@@ -788,7 +782,7 @@ impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
 
         return Self {
             data: coppied_data,
-            len: AtomicUsize::new(len),
+            len: AtomicUsize::new(self.len.load(Ordering::Relaxed)),
             locked: AtomicBool::new(false),
         };
     }
