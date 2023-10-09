@@ -31,13 +31,12 @@ pub struct FrozenMap<K, V> {
 
 impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for FrozenMap<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut d = f.debug_struct("FrozenMap");
         match self.map.try_read() {
             Ok(guard) => {
-                d.field("map", &&*guard);
+                f.debug_map().entries(guard.iter()).finish()
             },
             Err(TryLockError::Poisoned(err)) => {
-                d.field("map", &&**err.get_ref());
+                f.debug_tuple("FrozenMap").field(&&**err.get_ref()).finish()
             }
             Err(TryLockError::WouldBlock) => {
                 struct LockedPlaceholder;
@@ -46,10 +45,9 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for FrozenMap<K, V> {
                         f.write_str("<locked>")
                     }
                 }
-                d.field("map", &LockedPlaceholder);
+                f.debug_tuple("FrozenMap").field(&LockedPlaceholder).finish()
             },
         }
-        d.finish_non_exhaustive()
     }
 }
 
@@ -415,13 +413,12 @@ pub struct FrozenVec<T> {
 
 impl<T: fmt::Debug> fmt::Debug for FrozenVec<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut d = f.debug_struct("FrozenVec");
         match self.vec.try_read() {
             Ok(guard) => {
-                d.field("vec", &&*guard);
+                f.debug_list().entries(guard.iter()).finish()
             },
             Err(TryLockError::Poisoned(err)) => {
-                d.field("vec", &&**err.get_ref());
+                f.debug_tuple("FrozenMap").field(&&**err.get_ref()).finish()
             }
             Err(TryLockError::WouldBlock) => {
                 struct LockedPlaceholder;
@@ -430,10 +427,9 @@ impl<T: fmt::Debug> fmt::Debug for FrozenVec<T> {
                         f.write_str("<locked>")
                     }
                 }
-                d.field("vec", &LockedPlaceholder);
+                f.debug_tuple("FrozenMap").field(&LockedPlaceholder).finish()
             },
         }
-        d.finish_non_exhaustive()
     }
 }
 
