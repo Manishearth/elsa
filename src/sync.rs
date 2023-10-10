@@ -11,10 +11,12 @@ use std::alloc::Layout;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::fmt;
 use std::hash::Hash;
 use std::iter::{FromIterator, IntoIterator};
 use std::ops::Index;
 
+use std::sync::TryLockError;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicPtr;
 use std::sync::atomic::AtomicUsize;
@@ -25,6 +27,28 @@ use std::sync::RwLock;
 /// insertion does not require mutable access
 pub struct FrozenMap<K, V> {
     map: RwLock<HashMap<K, V>>,
+}
+
+impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for FrozenMap<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.map.try_read() {
+            Ok(guard) => {
+                guard.fmt(f)
+            },
+            Err(TryLockError::Poisoned(err)) => {
+                f.debug_tuple("FrozenMap").field(&&**err.get_ref()).finish()
+            }
+            Err(TryLockError::WouldBlock) => {
+                struct LockedPlaceholder;
+                impl fmt::Debug for LockedPlaceholder {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.write_str("<locked>")
+                    }
+                }
+                f.debug_tuple("FrozenMap").field(&LockedPlaceholder).finish()
+            },
+        }
+    }
 }
 
 impl<K, V> Default for FrozenMap<K, V> {
@@ -385,6 +409,28 @@ impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
 /// insertion does not require mutable access
 pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
+}
+
+impl<T: fmt::Debug> fmt::Debug for FrozenVec<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.vec.try_read() {
+            Ok(guard) => {
+                guard.fmt(f)
+            },
+            Err(TryLockError::Poisoned(err)) => {
+                f.debug_tuple("FrozenMap").field(&&**err.get_ref()).finish()
+            }
+            Err(TryLockError::WouldBlock) => {
+                struct LockedPlaceholder;
+                impl fmt::Debug for LockedPlaceholder {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.write_str("<locked>")
+                    }
+                }
+                f.debug_tuple("FrozenMap").field(&LockedPlaceholder).finish()
+            },
+        }
+    }
 }
 
 impl<T> FrozenVec<T> {
