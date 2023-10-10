@@ -33,7 +33,7 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for FrozenMap<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.map.try_read() {
             Ok(guard) => {
-                f.debug_map().entries(guard.iter()).finish()
+                guard.fmt(f)
             },
             Err(TryLockError::Poisoned(err)) => {
                 f.debug_tuple("FrozenMap").field(&&**err.get_ref()).finish()
@@ -415,7 +415,7 @@ impl<T: fmt::Debug> fmt::Debug for FrozenVec<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.vec.try_read() {
             Ok(guard) => {
-                f.debug_list().entries(guard.iter()).finish()
+                guard.fmt(f)
             },
             Err(TryLockError::Poisoned(err)) => {
                 f.debug_tuple("FrozenMap").field(&&**err.get_ref()).finish()
