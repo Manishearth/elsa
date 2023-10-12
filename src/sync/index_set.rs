@@ -1,21 +1,41 @@
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
+use std::fmt;
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::Index;
-use std::sync::RwLock;
+use std::sync::{RwLock, TryLockError};
 
 use indexmap::IndexSet;
 use stable_deref_trait::StableDeref;
 
 /// Append-only threadsafeversion of `indexmap::IndexSet` where
 /// insertion does not require mutable access
-#[derive(Debug)]
 pub struct FrozenIndexSet<T, S = RandomState> {
     set: RwLock<IndexSet<T, S>>,
 }
 
-// safety: UnsafeCell implies !Sync
+impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for FrozenIndexSet<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.set.try_read() {
+            Ok(guard) => guard.fmt(f),
+            Err(TryLockError::Poisoned(err)) => {
+                f.debug_tuple("FrozenIndexSet").field(&&**err.get_ref()).finish()
+            }
+            Err(TryLockError::WouldBlock) => {
+                struct LockedPlaceholder;
+                impl fmt::Debug for LockedPlaceholder {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.write_str("<locked>")
+                    }
+                }
+                f.debug_tuple("FrozenIndexSet")
+                    .field(&LockedPlaceholder)
+                    .finish()
+            }
+        }
+    }
+}
 
 impl<T: Eq + Hash> FrozenIndexSet<T> {
     pub fn new() -> Self {
@@ -34,7 +54,7 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     ///
     /// # Example
     /// ```
-    /// use elsa::sync_index_set::FrozenIndexSet;
+    /// use elsa::sync::index_set::FrozenIndexSet;
     /// let set = FrozenIndexSet::new();
     /// let a_ref = set.insert(Box::new("a"));
     /// let aa = "a";
@@ -63,7 +83,7 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     ///
     /// # Example
     /// ```
-    /// use elsa::sync_index_set::FrozenIndexSet;
+    /// use elsa::sync::index_set::FrozenIndexSet;
     /// let map = FrozenIndexSet::new();
     /// assert_eq!(map.insert_full(Box::new("a")), (0, &"a"));
     /// assert_eq!(map.insert_full(Box::new("b")), (1, &"b"));
@@ -86,7 +106,7 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     ///
     /// # Example
     /// ```
-    /// use elsa::sync_index_set::FrozenIndexSet;
+    /// use elsa::sync::index_set::FrozenIndexSet;
     /// let map = FrozenIndexSet::new();
     /// assert_eq!(map.insert_probe(Box::new("a")), (0, true));
     /// assert_eq!(map.insert_probe(Box::new("b")), (1, true));
@@ -102,7 +122,7 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     /// # Examples
     ///
     /// ```
-    /// use elsa::sync_index_set::FrozenIndexSet;
+    /// use elsa::sync::index_set::FrozenIndexSet;
     ///
     /// let set = FrozenIndexSet::new();
     /// set.insert(Box::new("a"));
@@ -125,7 +145,7 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     /// # Examples
     ///
     /// ```
-    /// use elsa::sync_index_set::FrozenIndexSet;
+    /// use elsa::sync::index_set::FrozenIndexSet;
     ///
     /// let set = FrozenIndexSet::new();
     /// set.insert(Box::new("a"));
@@ -153,7 +173,7 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     /// # Examples
     ///
     /// ```
-    /// use elsa::sync_index_set::FrozenIndexSet;
+    /// use elsa::sync::index_set::FrozenIndexSet;
     ///
     /// let set = FrozenIndexSet::new();
     /// set.insert(Box::new("a"));
@@ -184,8 +204,6 @@ impl<T, S> FrozenIndexSet<T, S> {
     pub fn as_mut(&mut self) -> &mut IndexSet<T, S> {
         self.set.get_mut().unwrap()
     }
-
-    // TODO add more
 }
 
 impl<T, S> From<IndexSet<T, S>> for FrozenIndexSet<T, S> {

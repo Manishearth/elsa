@@ -25,6 +25,11 @@ use std::sync::atomic::Ordering;
 use std::sync::RwLock;
 use std::sync::TryLockError;
 
+#[cfg(feature = "indexmap")]
+pub mod index_map;
+#[cfg(feature = "indexmap")]
+pub mod index_set;
+
 /// Append-only threadsafe version of `std::collections::HashMap` where
 /// insertion does not require mutable access
 pub struct FrozenMap<K, V> {

@@ -1,21 +1,41 @@
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
+use std::fmt;
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::Index;
 
 use indexmap::IndexMap;
 use stable_deref_trait::StableDeref;
-use std::sync::RwLock;
+use std::sync::{RwLock, TryLockError};
 
 /// Append-only threadsafe version of `indexmap::IndexMap` where
 /// insertion does not require mutable access
-#[derive(Debug)]
 pub struct FrozenIndexMap<K, V, S = RandomState> {
     map: RwLock<IndexMap<K, V, S>>,
 }
 
-// safety: UnsafeCell implies !Sync
+impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for FrozenIndexMap<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.map.try_read() {
+            Ok(guard) => guard.fmt(f),
+            Err(TryLockError::Poisoned(err)) => {
+                f.debug_tuple("FrozenIndexMap").field(&&**err.get_ref()).finish()
+            }
+            Err(TryLockError::WouldBlock) => {
+                struct LockedPlaceholder;
+                impl fmt::Debug for LockedPlaceholder {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.write_str("<locked>")
+                    }
+                }
+                f.debug_tuple("FrozenIndexMap")
+                    .field(&LockedPlaceholder)
+                    .finish()
+            }
+        }
+    }
+}
 
 impl<K: Eq + Hash, V> FrozenIndexMap<K, V> {
     pub fn new() -> Self {
@@ -41,7 +61,7 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     ///
     /// # Example
     /// ```
-    /// use elsa::sync_index_map::FrozenIndexMap;
+    /// use elsa::sync::index_map::FrozenIndexMap;
     /// let map = FrozenIndexMap::new();
     /// assert_eq!(map.insert(1, Box::new("a")), &"a");
     /// assert_eq!(map.insert(1, Box::new("b")), &"a");
@@ -69,7 +89,7 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     ///
     /// # Example
     /// ```
-    /// use elsa::sync_index_map::FrozenIndexMap;
+    /// use elsa::sync::index_map::FrozenIndexMap;
     /// let map = FrozenIndexMap::new();
     /// assert_eq!(map.insert_full(12, Box::new("a")), (0, &"a"));
     /// assert_eq!(map.insert_full(12, Box::new("b")), (0, &"a"));
@@ -94,7 +114,7 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use elsa::sync_index_map::FrozenIndexMap;
+    /// use elsa::sync::index_map::FrozenIndexMap;
     ///
     /// let map = FrozenIndexMap::new();
     /// map.insert(1, Box::new("a"));
@@ -120,7 +140,7 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use elsa::sync_index_map::FrozenIndexMap;
+    /// use elsa::sync::index_map::FrozenIndexMap;
     ///
     /// let map = FrozenIndexMap::new();
     /// let (idx, _ref) = map.insert_full(Box::new("foo"), Box::new("a"));
@@ -150,7 +170,7 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use elsa::sync_index_map::FrozenIndexMap;
+    /// use elsa::sync::index_map::FrozenIndexMap;
     ///
     /// let map = FrozenIndexMap::new();
     /// map.insert(1, Box::new("a"));
@@ -177,7 +197,7 @@ impl<K, V, S> FrozenIndexMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use elsa::sync_index_map::FrozenIndexMap;
+    /// use elsa::sync::index_map::FrozenIndexMap;
     ///
     /// let map = FrozenIndexMap::new();
     /// map.insert(1, Box::new("a"));
@@ -209,7 +229,7 @@ impl<K, V, S> FrozenIndexMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use elsa::sync_index_map::FrozenIndexMap;
+    /// use elsa::sync::index_map::FrozenIndexMap;
     ///
     /// let map = FrozenIndexMap::new();
     /// assert_eq!(map.is_empty(), true);
@@ -242,7 +262,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use elsa::sync_index_map::FrozenIndexMap;
+    /// use elsa::sync::index_map::FrozenIndexMap;
     ///
     /// let map = FrozenIndexMap::new();
     /// map.insert(1, Box::new("a"));

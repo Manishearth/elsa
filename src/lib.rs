@@ -17,10 +17,6 @@ pub mod vec;
 pub mod index_map;
 #[cfg(feature = "indexmap")]
 pub mod index_set;
-#[cfg(feature = "indexmap")]
-pub mod sync_index_map;
-#[cfg(feature = "indexmap")]
-pub mod sync_index_set;
 
 pub mod sync;
 
