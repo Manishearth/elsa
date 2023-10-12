@@ -78,6 +78,25 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
         ret
     }
 
+    /// If the key exists in the set, returns a reference to the index of the corresponding
+    /// value and false, otherwise inserts a new entry in the set for that value
+    /// and returns its index and true.
+    ///
+    /// Existing values are never overwritten.
+    ///
+    /// # Example
+    /// ```
+    /// use elsa::sync_index_set::FrozenIndexSet;
+    /// let map = FrozenIndexSet::new();
+    /// assert_eq!(map.insert_probe(Box::new("a")), (0, true));
+    /// assert_eq!(map.insert_probe(Box::new("b")), (1, true));
+    /// assert_eq!(map.insert_probe(Box::new("a")), (0, false));
+    /// ```
+    pub fn insert_probe(&self, value: T) -> (usize, bool) {
+        let mut set = self.set.write().unwrap();
+        (*set).insert_full(value)
+    }
+
     /// Returns a reference to the value passed as argument if present in the set.
     ///
     /// # Examples
