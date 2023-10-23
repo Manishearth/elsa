@@ -819,12 +819,6 @@ impl<T: Copy> LockFreeFrozenVec<T> {
     /// - `func`: a function that takes a slice to the buffer and the buffer index
     ///
     fn for_each_buffer(&self, mut func: impl FnMut(&[T], usize)) {
-        let len = self.len.load(Ordering::Acquire);
-        // handle the empty case
-        if len == 0 {
-            return;
-        }
-
         // for each buffer, run the function
         for buffer_index in 0..NUM_BUFFERS {
             // get the buffer pointer
@@ -958,6 +952,12 @@ fn test_non_lockfree() {
         for i in 0..1000 {
             assert_eq!(large_vec_2.get(i), Some(Moo(i as i32)));
         }
+    }
+    // Test cloning an empty vector
+    {
+        let empty_vec = LockFreeFrozenVec::<()>::new();
+        let empty_vec_2 = empty_vec.clone();
+        assert_eq!(empty_vec_2.get(0), None);
     }
 
     // Test dropping empty vecs
