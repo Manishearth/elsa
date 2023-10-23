@@ -34,6 +34,24 @@ impl<K: Eq + Hash, V> FrozenIndexMap<K, V> {
 impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     // these should never return &K or &V
     // these should never delete any entries
+    //
+    /// If the key exists in the map, returns a reference to the corresponding
+    /// value, otherwise inserts a new entry in the map for that key
+    /// and returns a reference to the generated value.
+    ///
+    /// Existing values are never overwritten.
+    ///
+    /// The key may be any borrowed form of the map's key type, but
+    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
+    /// the key type.
+    ///
+    /// # Example
+    /// ```
+    /// use elsa::index_map::FrozenIndexMap;
+    /// let map = FrozenIndexMap::new();
+    /// assert_eq!(map.insert(1, Box::new("a")), &"a");
+    /// assert_eq!(map.insert(1, Box::new("b")), &"a");
+    /// ```
     pub fn insert(&self, k: K, v: V) -> &V::Target {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -47,6 +65,24 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
 
     // these should never return &K or &V
     // these should never delete any entries
+    //
+    /// If the key exists in the map, returns a reference to the corresponding
+    /// value and its index, otherwise inserts a new entry in the map for that key
+    /// and returns a reference to the generated value and its index.
+    ///
+    /// Existing values are never overwritten.
+    ///
+    /// The key may be any borrowed form of the map's key type, but
+    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
+    /// the key type.
+    ///
+    /// # Example
+    /// ```
+    /// use elsa::index_map::FrozenIndexMap;
+    /// let map = FrozenIndexMap::new();
+    /// assert_eq!(map.insert_full(12, Box::new("a")), (0, &"a"));
+    /// assert_eq!(map.insert_full(12, Box::new("b")), (0, &"a"));
+    /// ```
     pub fn insert_full(&self, k: K, v: V) -> (usize, &V::Target) {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -91,6 +127,23 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
         ret
     }
 
+    /// Returns a reference to the key-value mapping corresponding to an index.
+    ///
+    /// The key may be any borrowed form of the map's key type, but
+    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
+    /// the key type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::index_map::FrozenIndexMap;
+    ///
+    /// let map = FrozenIndexMap::new();
+    /// let (idx, _ref) = map.insert_full(Box::new("foo"), Box::new("a"));
+    /// assert_eq!(idx, 0);
+    /// assert_eq!(map.get_index(idx), Some((&"foo", &"a")));
+    /// assert_eq!(map.get_index(idx + 1), None);
+    /// ```
     pub fn get_index(&self, index: usize) -> Option<(&K::Target, &V::Target)>
     where
         K: StableDeref,
@@ -246,5 +299,18 @@ impl<K: Clone, V: Clone, S: Clone> Clone for FrozenIndexMap<K, V, S> {
         };
         self.in_use.set(false);
         return self_clone;
+    }
+}
+
+impl<T: Hash + Eq, S: PartialEq> PartialEq for FrozenIndexMap<T, S> {
+    fn eq(&self, other: &Self) -> bool {
+        assert!(!self.in_use.get());
+        assert!(!other.in_use.get());
+        self.in_use.set(true);
+        other.in_use.set(true);
+        let ret = unsafe { *self.map.get() == *other.map.get() };
+        self.in_use.set(false);
+        other.in_use.set(false);
+        ret
     }
 }

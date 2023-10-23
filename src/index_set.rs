@@ -31,6 +31,24 @@ impl<T: Eq + Hash> FrozenIndexSet<T> {
 impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     // these should never return &T
     // these should never delete any entries
+    //
+    /// If the value exists in the set, returns a reference to the corresponding
+    /// value, otherwise inserts a new entry in the set for that value
+    /// and returns a reference to it.
+    ///
+    /// Existing values are never overwritten.
+    ///
+    /// # Example
+    /// ```
+    /// use elsa::index_set::FrozenIndexSet;
+    /// let set = FrozenIndexSet::new();
+    /// let a_ref = set.insert(Box::new("a"));
+    /// let aa = "a";
+    /// let other_a_ref = unsafe { aa.as_ptr() as *const &str};
+    /// let other_a = Box::new(aa);
+    /// assert!(!std::ptr::eq(a_ref, other_a_ref));
+    /// assert!(std::ptr::eq(a_ref, set.insert(other_a)));
+    /// ```
     pub fn insert(&self, value: T) -> &T::Target {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -45,6 +63,19 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
 
     // these should never return &T
     // these should never delete any entries
+    /// If the key exists in the set, returns a reference to the corresponding
+    /// value and its index, otherwise inserts a new entry in the set for that value
+    /// and returns a reference to it and its index.
+    ///
+    /// Existing values are never overwritten.
+    ///
+    /// # Example
+    /// ```
+    /// use elsa::index_set::FrozenIndexSet;
+    /// let map = FrozenIndexSet::new();
+    /// assert_eq!(map.insert_full(Box::new("a")), (0, &"a"));
+    /// assert_eq!(map.insert_full(Box::new("b")), (1, &"b"));
+    /// ```
     pub fn insert_full(&self, value: T) -> (usize, &T::Target) {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -84,6 +115,18 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     //     }
     // }
 
+    /// Returns a reference to the value passed as argument if present in the set.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::index_set::FrozenIndexSet;
+    ///
+    /// let set = FrozenIndexSet::new();
+    /// set.insert(Box::new("a"));
+    /// assert_eq!(set.get(&Box::new("a")), Some(&"a"));
+    /// assert_eq!(set.get(&Box::new("b")), None);
+    /// ```
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&T::Target>
     where
         T: Borrow<Q>,
@@ -99,6 +142,19 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
         ret
     }
 
+    /// Returns a reference to the value passed as argument if present in the set,
+    /// along with its index
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::index_set::FrozenIndexSet;
+    ///
+    /// let set = FrozenIndexSet::new();
+    /// set.insert(Box::new("a"));
+    /// assert_eq!(set.get_full(&Box::new("a")), Some((0, &"a")));
+    /// assert_eq!(set.get_full(&Box::new("b")), None);
+    /// ```
     pub fn get_full<Q: ?Sized>(&self, k: &Q) -> Option<(usize, &T::Target)>
     where
         T: Borrow<Q>,
@@ -114,6 +170,19 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
         ret
     }
 
+    /// Returns a reference to value at the index passed as argument, if
+    /// present in the set.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::index_set::FrozenIndexSet;
+    ///
+    /// let set = FrozenIndexSet::new();
+    /// set.insert(Box::new("a"));
+    /// assert_eq!(set.get_index(0), Some(&"a"));
+    /// assert_eq!(set.get_index(1), None);
+    /// ```
     pub fn get_index(&self, index: usize) -> Option<&T::Target> {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -191,5 +260,18 @@ impl<K: Clone, V: Clone> Clone for FrozenIndexSet<K, V> {
         };
         self.in_use.set(false);
         return self_clone;
+    }
+}
+
+impl<T: Hash + Eq, S: BuildHasher> PartialEq for FrozenIndexSet<T, S> {
+    fn eq(&self, other: &Self) -> bool {
+        assert!(!self.in_use.get());
+        assert!(!other.in_use.get());
+        self.in_use.set(true);
+        other.in_use.set(true);
+        let ret = unsafe { *self.set.get() == *other.set.get() };
+        self.in_use.set(false);
+        other.in_use.set(false);
+        ret
     }
 }

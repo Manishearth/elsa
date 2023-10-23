@@ -283,6 +283,15 @@ impl<'a, T: StableDeref> IntoIterator for &'a FrozenVec<T> {
     }
 }
 
+impl<T: StableDeref> PartialEq for FrozenVec<T>
+where
+    T::Target: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.vec.get() == other.vec.get()
+    }
+}
+
 #[test]
 fn test_iteration() {
     let vec = vec!["a", "b", "c", "d"];
