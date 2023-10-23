@@ -942,10 +942,23 @@ fn test_non_lockfree() {
     });
 
     // Test cloning
-    let vec2 = vec.clone();
-    assert_eq!(vec2.get(0), Some(Moo(1)));
-    assert_eq!(vec2.get(1), Some(Moo(2)));
-    assert_eq!(vec2.get(2), Some(Moo(3)));
+    {
+        let vec2 = vec.clone();
+        assert_eq!(vec2.get(0), Some(Moo(1)));
+        assert_eq!(vec2.get(1), Some(Moo(2)));
+        assert_eq!(vec2.get(2), Some(Moo(3)));
+    }
+    // Test cloning a large vector
+    {
+        let large_vec = LockFreeFrozenVec::new();
+        for i in 0..1000 {
+            large_vec.push(Moo(i));
+        }
+        let large_vec_2 = large_vec.clone();
+        for i in 0..1000 {
+            assert_eq!(large_vec_2.get(i), Some(Moo(i as i32)));
+        }
+    }
 
     // Test dropping empty vecs
     LockFreeFrozenVec::<()>::new();
