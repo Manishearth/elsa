@@ -9,6 +9,7 @@
 use stable_deref_trait::StableDeref;
 use std::alloc::Layout;
 use std::borrow::Borrow;
+use std::cmp::Eq;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt;
@@ -422,6 +423,14 @@ impl<K: Clone, V: Clone> Clone for FrozenMap<K, V> {
     }
 }
 
+impl<K: Eq + Hash, V: PartialEq> PartialEq for FrozenMap<K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        let self_ref: &HashMap<K, V> = &self.map.read().unwrap();
+        let other_ref: &HashMap<K, V> = &other.map.read().unwrap();
+        self_ref == other_ref
+    }
+}
+
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access
 pub struct FrozenVec<T> {
@@ -603,6 +612,14 @@ impl<T: Clone> Clone for FrozenVec<T> {
         Self {
             vec: self.vec.read().unwrap().clone().into(),
         }
+    }
+}
+
+impl<T: PartialEq> PartialEq for FrozenVec<T> {
+    fn eq(&self, other: &Self) -> bool {
+        let self_ref: &Vec<T> = &self.vec.read().unwrap();
+        let other_ref: &Vec<T> = &other.vec.read().unwrap();
+        self_ref == other_ref
     }
 }
 
@@ -1055,5 +1072,13 @@ impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
 impl<K: Clone, V: Clone> Clone for FrozenBTreeMap<K, V> {
     fn clone(&self) -> Self {
         Self(self.0.read().unwrap().clone().into())
+    }
+}
+
+impl<K: PartialEq, V: PartialEq> PartialEq for FrozenBTreeMap<K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        let self_ref: &BTreeMap<K, V> = &self.0.read().unwrap();
+        let other_ref: &BTreeMap<K, V> = &other.0.read().unwrap();
+        self_ref == other_ref
     }
 }
