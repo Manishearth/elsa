@@ -249,3 +249,16 @@ impl<T: Eq + Hash, S: Default> Default for FrozenIndexSet<T, S> {
         Self::from(IndexSet::default())
     }
 }
+
+impl<T: Hash + Eq, S: BuildHasher> PartialEq for FrozenIndexSet<T, S> {
+    fn eq(&self, other: &Self) -> bool {
+        assert!(!self.in_use.get());
+        assert!(!other.in_use.get());
+        self.in_use.set(true);
+        other.in_use.set(true);
+        let ret = unsafe { *self.set.get() == *other.set.get() };
+        self.in_use.set(false);
+        other.in_use.set(false);
+        ret
+    }
+}
