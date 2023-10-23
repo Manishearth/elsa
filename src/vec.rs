@@ -216,6 +216,14 @@ impl<T> Default for FrozenVec<T> {
     }
 }
 
+impl<T: Clone> Clone for FrozenVec<T> {
+    fn clone(&self) -> Self {
+        Self {
+            vec: unsafe { self.vec.get().as_ref().unwrap() }.clone().into(),
+        }
+    }
+}
+
 impl<T> From<Vec<T>> for FrozenVec<T> {
     fn from(vec: Vec<T>) -> Self {
         Self {

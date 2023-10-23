@@ -415,6 +415,14 @@ impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
     }
 }
 
+impl<K: Clone, V: Clone> Clone for FrozenMap<K, V> {
+    fn clone(&self) -> Self {
+        Self {
+            map: self.map.read().unwrap().clone().into(),
+        }
+    }
+}
+
 impl<K: Eq + Hash, V: PartialEq> PartialEq for FrozenMap<K, V> {
     fn eq(&self, other: &Self) -> bool {
         let self_ref: &HashMap<K, V> = &self.map.read().unwrap();
@@ -514,7 +522,7 @@ impl<T: StableDeref> FrozenVec<T> {
     /// Returns an iterator over the vector.
     pub fn iter(&self) -> Iter<'_, T> {
         self.into_iter()
-    }    
+    }
 }
 
 /// Iterator over FrozenVec, obtained via `.iter()`
@@ -595,6 +603,14 @@ impl<T> Default for FrozenVec<T> {
     fn default() -> Self {
         Self {
             vec: Default::default(),
+        }
+    }
+}
+
+impl<T: Clone> Clone for FrozenVec<T> {
+    fn clone(&self) -> Self {
+        Self {
+            vec: self.vec.read().unwrap().clone().into(),
         }
     }
 }
@@ -1050,6 +1066,12 @@ impl<K: Clone + Ord, V: StableDeref> FromIterator<(K, V)> for FrozenBTreeMap<K, 
 impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<K: Clone, V: Clone> Clone for FrozenBTreeMap<K, V> {
+    fn clone(&self) -> Self {
+        Self(self.0.read().unwrap().clone().into())
     }
 }
 
