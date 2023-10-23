@@ -12,10 +12,12 @@ use std::borrow::Borrow;
 use std::cmp::Eq;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::fmt;
 use std::hash::Hash;
 use std::iter::{FromIterator, IntoIterator};
 use std::ops::Index;
 
+use std::sync::TryLockError;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicPtr;
 use std::sync::atomic::AtomicUsize;
@@ -26,6 +28,28 @@ use std::sync::RwLock;
 /// insertion does not require mutable access
 pub struct FrozenMap<K, V> {
     map: RwLock<HashMap<K, V>>,
+}
+
+impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for FrozenMap<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.map.try_read() {
+            Ok(guard) => {
+                guard.fmt(f)
+            },
+            Err(TryLockError::Poisoned(err)) => {
+                f.debug_tuple("FrozenMap").field(&&**err.get_ref()).finish()
+            }
+            Err(TryLockError::WouldBlock) => {
+                struct LockedPlaceholder;
+                impl fmt::Debug for LockedPlaceholder {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.write_str("<locked>")
+                    }
+                }
+                f.debug_tuple("FrozenMap").field(&LockedPlaceholder).finish()
+            },
+        }
+    }
 }
 
 impl<K, V> Default for FrozenMap<K, V> {
@@ -41,6 +65,15 @@ impl<K, V> FrozenMap<K, V> {
         Self::default()
     }
 }
+
+impl<T> From<Vec<T>> for FrozenVec<T> {
+    fn from(vec: Vec<T>) -> Self {
+        Self {
+            vec: RwLock::new(vec),
+        }
+    }
+}
+
 
 impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     // these should never return &K or &V
@@ -396,6 +429,28 @@ pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
 }
 
+impl<T: fmt::Debug> fmt::Debug for FrozenVec<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.vec.try_read() {
+            Ok(guard) => {
+                guard.fmt(f)
+            },
+            Err(TryLockError::Poisoned(err)) => {
+                f.debug_tuple("FrozenMap").field(&&**err.get_ref()).finish()
+            }
+            Err(TryLockError::WouldBlock) => {
+                struct LockedPlaceholder;
+                impl fmt::Debug for LockedPlaceholder {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.write_str("<locked>")
+                    }
+                }
+                f.debug_tuple("FrozenMap").field(&LockedPlaceholder).finish()
+            },
+        }
+    }
+}
+
 impl<T> FrozenVec<T> {
     /// Returns the number of elements in the vector.
     pub fn len(&self) -> usize {
@@ -455,6 +510,53 @@ impl<T: StableDeref> FrozenVec<T> {
         let vec = self.vec.read().unwrap();
         unsafe { vec.get(index).map(|x| &*(&**x as *const T::Target)) }
     }
+
+    /// Returns an iterator over the vector.
+    pub fn iter(&self) -> Iter<'_, T> {
+        self.into_iter()
+    }    
+}
+
+/// Iterator over FrozenVec, obtained via `.iter()`
+///
+/// It is safe to push to the vector during iteration
+#[derive(Debug)]
+pub struct Iter<'a, T> {
+    vec: &'a FrozenVec<T>,
+    idx: usize,
+}
+
+impl<'a, T: StableDeref> Iterator for Iter<'a, T> {
+    type Item = &'a T::Target;
+    fn next(&mut self) -> Option<&'a T::Target> {
+        if let Some(ret) = self.vec.get(self.idx) {
+            self.idx += 1;
+            Some(ret)
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T: StableDeref> IntoIterator for &'a FrozenVec<T> {
+    type Item = &'a T::Target;
+    type IntoIter = Iter<'a, T>;
+    fn into_iter(self) -> Iter<'a, T> {
+        Iter { vec: self, idx: 0 }
+    }
+}
+
+#[test]
+fn test_iteration() {
+    let vec = vec!["a", "b", "c", "d"];
+    let frozen: FrozenVec<_> = vec.clone().into();
+
+    assert_eq!(vec, frozen.iter().collect::<Vec<_>>());
+    for (e1, e2) in vec.iter().zip(frozen.iter()) {
+        assert_eq!(*e1, e2);
+    }
+
+    assert_eq!(vec.len(), frozen.iter().count())
 }
 
 impl<T> FrozenVec<T> {
