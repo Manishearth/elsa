@@ -29,3 +29,4 @@ serde_json = "1.0.104"
 [features]
 default = []
 serde = ["dep:serde", "indexmap/serde"]
+indexmap = ["dep:indexmap"]

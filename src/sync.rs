@@ -30,7 +30,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Append-only threadsafe version of `std::collections::HashMap` where
 /// insertion does not require mutable access
-#[derive(Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -457,7 +456,6 @@ fn test_sync_frozen_map() {
 
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access
-#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
@@ -1069,14 +1067,18 @@ fn test_non_lockfree() {
     #[cfg(feature = "serde")]
     {
         let vec = LockFreeFrozenVec::new();
+        let json_empty = serde_json::to_string(&vec).unwrap();
+        let vec_empty = serde_json::from_str::<LockFreeFrozenVec<Moo>>(&json_empty).unwrap();
+        assert_eq!(vec_empty.get(0), None);
+
         vec.push(Moo(1));
         vec.push(Moo(2));
         vec.push(Moo(3));
         let json = serde_json::to_string(&vec).unwrap();
-        let vec = serde_json::from_str::<LockFreeFrozenVec<Moo>>(&json).unwrap();
-        assert_eq!(vec.get(0), Some(Moo(1)));
-        assert_eq!(vec.get(1), Some(Moo(2)));
-        assert_eq!(vec.get(2), Some(Moo(3)));
+        let serde_vec = serde_json::from_str::<LockFreeFrozenVec<Moo>>(&json).unwrap();
+        assert_eq!(serde_vec.get(0), Some(Moo(1)));
+        assert_eq!(serde_vec.get(1), Some(Moo(2)));
+        assert_eq!(serde_vec.get(2), Some(Moo(3)));
     }
 }
 
