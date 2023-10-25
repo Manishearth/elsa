@@ -216,6 +216,14 @@ impl<T> Default for FrozenVec<T> {
     }
 }
 
+impl<T: Clone> Clone for FrozenVec<T> {
+    fn clone(&self) -> Self {
+        Self {
+            vec: unsafe { self.vec.get().as_ref().unwrap() }.clone().into(),
+        }
+    }
+}
+
 impl<T> From<Vec<T>> for FrozenVec<T> {
     fn from(vec: Vec<T>) -> Self {
         Self {
@@ -272,6 +280,15 @@ impl<'a, T: StableDeref> IntoIterator for &'a FrozenVec<T> {
     type IntoIter = Iter<'a, T>;
     fn into_iter(self) -> Iter<'a, T> {
         Iter { vec: self, idx: 0 }
+    }
+}
+
+impl<T: StableDeref> PartialEq for FrozenVec<T>
+where
+    T::Target: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.vec.get() == other.vec.get()
     }
 }
 

@@ -9,17 +9,21 @@
 use stable_deref_trait::StableDeref;
 use std::alloc::Layout;
 use std::borrow::Borrow;
+use std::cmp::Eq;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::fmt;
 use std::hash::Hash;
 use std::iter::{FromIterator, IntoIterator};
 use std::ops::Index;
 
+use std::ptr::NonNull;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicPtr;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::RwLock;
+use std::sync::TryLockError;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -36,6 +40,28 @@ pub struct FrozenMap<K, V> {
     map: RwLock<HashMap<K, V>>,
 }
 
+impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for FrozenMap<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.map.try_read() {
+            Ok(guard) => guard.fmt(f),
+            Err(TryLockError::Poisoned(err)) => {
+                f.debug_tuple("FrozenMap").field(&&**err.get_ref()).finish()
+            }
+            Err(TryLockError::WouldBlock) => {
+                struct LockedPlaceholder;
+                impl fmt::Debug for LockedPlaceholder {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.write_str("<locked>")
+                    }
+                }
+                f.debug_tuple("FrozenMap")
+                    .field(&LockedPlaceholder)
+                    .finish()
+            }
+        }
+    }
+}
+
 impl<K, V> Default for FrozenMap<K, V> {
     fn default() -> Self {
         Self {
@@ -47,6 +73,14 @@ impl<K, V> Default for FrozenMap<K, V> {
 impl<K, V> FrozenMap<K, V> {
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+impl<T> From<Vec<T>> for FrozenVec<T> {
+    fn from(vec: Vec<T>) -> Self {
+        Self {
+            vec: RwLock::new(vec),
+        }
     }
 }
 
@@ -390,7 +424,15 @@ impl<K, V> std::convert::AsMut<HashMap<K, V>> for FrozenMap<K, V> {
     }
 }
 
-impl<K: PartialEq + Eq + Hash, V: PartialEq> PartialEq for FrozenMap<K, V> {
+impl<K: Clone, V: Clone> Clone for FrozenMap<K, V> {
+    fn clone(&self) -> Self {
+        Self {
+            map: self.map.read().unwrap().clone().into(),
+        }
+    }
+}
+
+impl<K: Eq + Hash, V: PartialEq> PartialEq for FrozenMap<K, V> {
     fn eq(&self, other: &Self) -> bool {
         let self_ref: &HashMap<K, V> = &self.map.read().unwrap();
         let other_ref: &HashMap<K, V> = &other.map.read().unwrap();
@@ -419,6 +461,28 @@ fn test_sync_frozen_map() {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
+}
+
+impl<T: fmt::Debug> fmt::Debug for FrozenVec<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.vec.try_read() {
+            Ok(guard) => guard.fmt(f),
+            Err(TryLockError::Poisoned(err)) => {
+                f.debug_tuple("FrozenMap").field(&&**err.get_ref()).finish()
+            }
+            Err(TryLockError::WouldBlock) => {
+                struct LockedPlaceholder;
+                impl fmt::Debug for LockedPlaceholder {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.write_str("<locked>")
+                    }
+                }
+                f.debug_tuple("FrozenMap")
+                    .field(&LockedPlaceholder)
+                    .finish()
+            }
+        }
+    }
 }
 
 impl<T> FrozenVec<T> {
@@ -480,6 +544,53 @@ impl<T: StableDeref> FrozenVec<T> {
         let vec = self.vec.read().unwrap();
         unsafe { vec.get(index).map(|x| &*(&**x as *const T::Target)) }
     }
+
+    /// Returns an iterator over the vector.
+    pub fn iter(&self) -> Iter<'_, T> {
+        self.into_iter()
+    }
+}
+
+/// Iterator over FrozenVec, obtained via `.iter()`
+///
+/// It is safe to push to the vector during iteration
+#[derive(Debug)]
+pub struct Iter<'a, T> {
+    vec: &'a FrozenVec<T>,
+    idx: usize,
+}
+
+impl<'a, T: StableDeref> Iterator for Iter<'a, T> {
+    type Item = &'a T::Target;
+    fn next(&mut self) -> Option<&'a T::Target> {
+        if let Some(ret) = self.vec.get(self.idx) {
+            self.idx += 1;
+            Some(ret)
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T: StableDeref> IntoIterator for &'a FrozenVec<T> {
+    type Item = &'a T::Target;
+    type IntoIter = Iter<'a, T>;
+    fn into_iter(self) -> Iter<'a, T> {
+        Iter { vec: self, idx: 0 }
+    }
+}
+
+#[test]
+fn test_iteration() {
+    let vec = vec!["a", "b", "c", "d"];
+    let frozen: FrozenVec<_> = vec.clone().into();
+
+    assert_eq!(vec, frozen.iter().collect::<Vec<_>>());
+    for (e1, e2) in vec.iter().zip(frozen.iter()) {
+        assert_eq!(*e1, e2);
+    }
+
+    assert_eq!(vec.len(), frozen.iter().count())
 }
 
 impl<T> FrozenVec<T> {
@@ -530,10 +641,10 @@ impl<T: Clone> Clone for FrozenVec<T> {
     }
 }
 
-impl PartialEq for FrozenVec<String> {
+impl<T: PartialEq> PartialEq for FrozenVec<T> {
     fn eq(&self, other: &Self) -> bool {
-        let self_ref: &Vec<String> = &self.vec.read().unwrap();
-        let other_ref: &Vec<String> = &other.vec.read().unwrap();
+        let self_ref: &Vec<T> = &self.vec.read().unwrap();
+        let other_ref: &Vec<T> = &other.vec.read().unwrap();
         self_ref == other_ref
     }
 }
@@ -741,6 +852,53 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         let local_index = index - prior_total_buffer_size(buffer_idx);
         unsafe { *buffer_ptr.add(local_index) }
     }
+
+    /// Run a function on each buffer in the vector.
+    ///
+    /// ## Arguments
+    /// - `func`: a function that takes a slice to the buffer and the buffer index
+    ///
+    fn for_each_buffer(&self, mut func: impl FnMut(&[T], usize)) {
+        // for each buffer, run the function
+        for buffer_index in 0..NUM_BUFFERS {
+            // get the buffer pointer
+            if let Some(buffer_ptr) = NonNull::new(self.data[buffer_index].load(Ordering::Acquire))
+            {
+                // get the buffer size and index
+                let buffer_size = buffer_size(buffer_index);
+
+                // create a slice from the buffer pointer and size
+                let buffer_slice =
+                    unsafe { std::slice::from_raw_parts(buffer_ptr.as_ptr(), buffer_size) };
+
+                // run the function
+                func(buffer_slice, buffer_index);
+            } else {
+                // no data in this buffer, so we're done
+                break;
+            }
+        }
+    }
+}
+
+impl<T: Copy + PartialEq> PartialEq for LockFreeFrozenVec<T> {
+    fn eq(&self, other: &Self) -> bool {
+        // first check the length
+        let self_len = self.len.load(Ordering::Acquire);
+        let other_len = other.len.load(Ordering::Acquire);
+        if self_len != other_len {
+            return false;
+        }
+
+        // Since the lengths are the same, just check the elements in order
+        for index in 0..self_len {
+            // This is safe because the indices are in bounds (for `LockFreeFrozenVec` the bounds can only grow).
+            if self.get(index) != other.get(index) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 #[test]
@@ -775,6 +933,35 @@ fn test_non_lockfree_unchecked() {
 
     // Test dropping empty vecs
     LockFreeFrozenVec::<()>::new();
+}
+
+impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
+    fn clone(&self) -> Self {
+        let mut coppied_data = [Self::NULL; NUM_BUFFERS];
+        // for each buffer, copy the data
+        self.for_each_buffer(|buffer_slice, buffer_index| {
+            // allocate a new buffer
+            let layout = Self::layout(buffer_slice.len());
+            let new_buffer_ptr = unsafe { std::alloc::alloc(layout).cast::<T>() };
+            assert!(!new_buffer_ptr.is_null());
+            // copy the data to the new buffer
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    buffer_slice.as_ptr(),
+                    new_buffer_ptr,
+                    buffer_slice.len(),
+                );
+            };
+            // store the new buffer pointer
+            *coppied_data[buffer_index].get_mut() = new_buffer_ptr;
+        });
+
+        return Self {
+            data: coppied_data,
+            len: AtomicUsize::new(self.len.load(Ordering::Relaxed)),
+            locked: AtomicBool::new(false),
+        };
+    }
 }
 
 #[cfg(feature = "serde")]
@@ -850,6 +1037,31 @@ fn test_non_lockfree() {
             while vec.get(i).is_none() {}
         }
     });
+
+    // Test cloning
+    {
+        let vec2 = vec.clone();
+        assert_eq!(vec2.get(0), Some(Moo(1)));
+        assert_eq!(vec2.get(1), Some(Moo(2)));
+        assert_eq!(vec2.get(2), Some(Moo(3)));
+    }
+    // Test cloning a large vector
+    {
+        let large_vec = LockFreeFrozenVec::new();
+        for i in 0..1000 {
+            large_vec.push(Moo(i));
+        }
+        let large_vec_2 = large_vec.clone();
+        for i in 0..1000 {
+            assert_eq!(large_vec_2.get(i), Some(Moo(i as i32)));
+        }
+    }
+    // Test cloning an empty vector
+    {
+        let empty_vec = LockFreeFrozenVec::<()>::new();
+        let empty_vec_2 = empty_vec.clone();
+        assert_eq!(empty_vec_2.get(0), None);
+    }
 
     // Test dropping empty vecs
     LockFreeFrozenVec::<()>::new();
@@ -1059,6 +1271,12 @@ impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
     }
 }
 
+impl<K: Clone, V: Clone> Clone for FrozenBTreeMap<K, V> {
+    fn clone(&self) -> Self {
+        Self(self.0.read().unwrap().clone().into())
+    }
+}
+
 impl<K: PartialEq, V: PartialEq> PartialEq for FrozenBTreeMap<K, V> {
     fn eq(&self, other: &Self) -> bool {
         let self_ref: &BTreeMap<K, V> = &self.0.read().unwrap();
@@ -1066,6 +1284,7 @@ impl<K: PartialEq, V: PartialEq> PartialEq for FrozenBTreeMap<K, V> {
         self_ref == other_ref
     }
 }
+
 #[test]
 fn test_sync_frozen_btreemap() {
     #[cfg(feature = "serde")]

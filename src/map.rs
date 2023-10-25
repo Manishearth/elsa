@@ -273,6 +273,19 @@ impl<K: Eq + Hash, V, S: Default> Default for FrozenMap<K, V, S> {
     }
 }
 
+impl<K: Clone, V: Clone, S: Clone> Clone for FrozenMap<K, V, S> {
+    fn clone(&self) -> Self {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let self_clone = Self {
+            map: unsafe { self.map.get().as_ref().unwrap() }.clone().into(),
+            in_use: Cell::from(false),
+        };
+        self.in_use.set(false);
+        return self_clone;
+    }
+}
+
 #[cfg(feature = "serde")]
 impl<K, V, S> Serialize for FrozenMap<K, V, S>
 where
@@ -530,6 +543,32 @@ impl<K: Clone + Ord, V: StableDeref> Default for FrozenBTreeMap<K, V> {
             map: UnsafeCell::new(Default::default()),
             in_use: Cell::new(false),
         }
+    }
+}
+
+impl<K: Clone, V: Clone> Clone for FrozenBTreeMap<K, V> {
+    fn clone(&self) -> Self {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let self_clone = Self {
+            map: unsafe { self.map.get().as_ref().unwrap() }.clone().into(),
+            in_use: Cell::from(false),
+        };
+        self.in_use.set(false);
+        return self_clone;
+    }
+}
+
+impl<K: Eq + Hash, V: PartialEq + StableDeref> PartialEq for FrozenMap<K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        assert!(!self.in_use.get());
+        assert!(!other.in_use.get());
+        self.in_use.set(true);
+        other.in_use.set(true);
+        let ret = self.map.get() == other.map.get();
+        self.in_use.set(false);
+        other.in_use.set(false);
+        ret
     }
 }
 
