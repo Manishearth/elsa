@@ -12,8 +12,8 @@ categories = ["data-structures", "caching"]
 
 [dependencies]
 stable_deref_trait = "1.1.1"
-indexmap = { version = "1.6", optional = true }
 serde = { version = "1.0.171", features = ["derive"], optional = true }
+indexmap = { version = "2.0.2", optional = true }
 
 [package.metadata.docs.rs]
 features = ["indexmap"]
