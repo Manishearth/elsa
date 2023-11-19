@@ -289,7 +289,7 @@ impl<K: Eq + Hash, V: PartialEq + StableDeref> PartialEq for FrozenMap<K, V> {
         assert!(!other.in_use.get());
         self.in_use.set(true);
         other.in_use.set(true);
-        let ret = self.map.get() == other.map.get();
+        let ret = unsafe { self.map.get().as_ref() == other.map.get().as_ref() };
         self.in_use.set(false);
         other.in_use.set(false);
         ret
@@ -541,7 +541,7 @@ impl<K: Eq + Hash, V: PartialEq + StableDeref> PartialEq for FrozenBTreeMap<K, V
         assert!(!other.in_use.get());
         self.in_use.set(true);
         other.in_use.set(true);
-        let ret = self.map.get() == other.map.get();
+        let ret = unsafe { self.map.get().as_ref() == other.map.get().as_ref() };
         self.in_use.set(false);
         other.in_use.set(false);
         ret

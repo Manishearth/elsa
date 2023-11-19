@@ -269,7 +269,7 @@ impl<T: Hash + Eq, S: BuildHasher> PartialEq for FrozenIndexSet<T, S> {
         assert!(!other.in_use.get());
         self.in_use.set(true);
         other.in_use.set(true);
-        let ret = unsafe { *self.set.get() == *other.set.get() };
+        let ret = unsafe { self.set.get().as_ref() == other.set.get().as_ref() };
         self.in_use.set(false);
         other.in_use.set(false);
         ret
