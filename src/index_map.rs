@@ -308,7 +308,7 @@ impl<T: Hash + Eq, S: PartialEq> PartialEq for FrozenIndexMap<T, S> {
         assert!(!other.in_use.get());
         self.in_use.set(true);
         other.in_use.set(true);
-        let ret = unsafe { *self.map.get() == *other.map.get() };
+        let ret = unsafe { self.map.get().as_ref() == other.map.get().as_ref() };
         self.in_use.set(false);
         other.in_use.set(false);
         ret

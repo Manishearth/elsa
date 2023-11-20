@@ -283,6 +283,19 @@ impl<K: Clone, V: Clone, S: Clone> Clone for FrozenMap<K, V, S> {
     }
 }
 
+impl<K: Eq + Hash, V: PartialEq + StableDeref> PartialEq for FrozenMap<K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        assert!(!self.in_use.get());
+        assert!(!other.in_use.get());
+        self.in_use.set(true);
+        other.in_use.set(true);
+        let ret = unsafe { self.map.get().as_ref() == other.map.get().as_ref() };
+        self.in_use.set(false);
+        other.in_use.set(false);
+        ret
+    }
+}
+
 /// Append-only version of `std::collections::BTreeMap` where
 /// insertion does not require mutable access
 pub struct FrozenBTreeMap<K, V> {
@@ -522,13 +535,13 @@ impl<K: Clone, V: Clone> Clone for FrozenBTreeMap<K, V> {
     }
 }
 
-impl<K: Eq + Hash, V: PartialEq + StableDeref> PartialEq for FrozenMap<K, V> {
+impl<K: Eq + Hash, V: PartialEq + StableDeref> PartialEq for FrozenBTreeMap<K, V> {
     fn eq(&self, other: &Self) -> bool {
         assert!(!self.in_use.get());
         assert!(!other.in_use.get());
         self.in_use.set(true);
         other.in_use.set(true);
-        let ret = self.map.get() == other.map.get();
+        let ret = unsafe { self.map.get().as_ref() == other.map.get().as_ref() };
         self.in_use.set(false);
         other.in_use.set(false);
         ret
