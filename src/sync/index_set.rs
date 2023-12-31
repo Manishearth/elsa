@@ -1,10 +1,14 @@
+#[cfg(all(feature = "shuttle", test))]
+use shuttle::sync::RwLock;
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::fmt;
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::Index;
-use std::sync::{RwLock, TryLockError};
+#[cfg(not(all(feature = "shuttle", test)))]
+use std::sync::RwLock;
+use std::sync::TryLockError;
 
 use indexmap::IndexSet;
 use stable_deref_trait::StableDeref;
@@ -19,9 +23,10 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for FrozenIndexSet<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.set.try_read() {
             Ok(guard) => guard.fmt(f),
-            Err(TryLockError::Poisoned(err)) => {
-                f.debug_tuple("FrozenIndexSet").field(&&**err.get_ref()).finish()
-            }
+            Err(TryLockError::Poisoned(err)) => f
+                .debug_tuple("FrozenIndexSet")
+                .field(&&**err.get_ref())
+                .finish(),
             Err(TryLockError::WouldBlock) => {
                 struct LockedPlaceholder;
                 impl fmt::Debug for LockedPlaceholder {
@@ -201,6 +206,7 @@ impl<T, S> FrozenIndexSet<T, S> {
     ///
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using
     /// the 'frozen' contents.
+    #[cfg(not(feature = "shuttle"))]
     pub fn as_mut(&mut self) -> &mut IndexSet<T, S> {
         self.set.get_mut().unwrap()
     }
@@ -239,5 +245,93 @@ impl<T: Eq + Hash, S: Default + BuildHasher> FromIterator<T> for FrozenIndexSet<
 impl<T: Eq + Hash, S: Default> Default for FrozenIndexSet<T, S> {
     fn default() -> Self {
         Self::from(IndexSet::default())
+    }
+}
+
+#[cfg(all(feature = "shuttle", test))]
+mod tests {
+    use shuttle::rand::{thread_rng, Rng};
+    use shuttle::thread;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_insert_full_idempotent() {
+        shuttle::check_random(
+            || {
+                let set = Arc::new(super::FrozenIndexSet::new());
+                let set_clone = set.clone();
+                let t1 = thread::spawn(move || {
+                    let i1 = set.insert_full(Box::new("a"));
+                    let i2 = set.insert_full(Box::new("a"));
+                    assert_eq!(i1, i2);
+                    i1.0
+                });
+                let t2 = thread::spawn(move || {
+                    let i1 = set_clone.insert_full(Box::new("a"));
+                    let i2 = set_clone.insert_full(Box::new("a"));
+                    assert_eq!(i1, i2);
+                    i1.0
+                });
+                let v1 = t1.join().unwrap();
+                let v2 = t2.join().unwrap();
+                assert_eq!(v1, v2);
+            },
+            100,
+        )
+    }
+
+    #[test]
+    fn test_insert_full_increments() {
+        shuttle::check_random(
+            || {
+                let set = Arc::new(super::FrozenIndexSet::new());
+                let set_clone = set.clone();
+                let t1 = thread::spawn(move || {
+                    let (idxa, _) = set.insert_full(Box::new("a"));
+                    let (idxb, _) = set.insert_full(Box::new("b"));
+                    std::cmp::max(idxa, idxb)
+                });
+                let t2 = thread::spawn(move || {
+                    let (idxa, _) = set_clone.insert_full(Box::new("a"));
+                    let (idxb, _) = set_clone.insert_full(Box::new("b"));
+                    std::cmp::max(idxa, idxb)
+                });
+                let idx1 = t1.join().unwrap();
+                let idx2 = t2.join().unwrap();
+                assert_eq!(1, std::cmp::max(idx2, idx1));
+            },
+            100,
+        )
+    }
+
+    #[test]
+    fn test_many() {
+        const ITEMS: usize = 100;
+        shuttle::check_random(
+            || {
+                let set = Arc::new(super::FrozenIndexSet::new());
+                let set_clone = set.clone();
+                let set_clone2 = set.clone();
+                let t1 = thread::spawn(move || {
+                    for _i in 0..ITEMS {
+                        let v = thread_rng().gen_range(0usize..100);
+                        set.insert(Box::new(v));
+                    }
+                });
+                let t2 = thread::spawn(move || {
+                    for _i in 0..ITEMS {
+                        let v = thread_rng().gen_range(0usize..100);
+                        set_clone.insert(Box::new(v));
+                    }
+                });
+                t1.join().unwrap();
+                t2.join().unwrap();
+
+                let (idx, b) = set_clone2.insert_probe(Box::new(ITEMS));
+                assert!(b);
+                assert!(idx <= ITEMS);
+            },
+            100,
+        )
     }
 }

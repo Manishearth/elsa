@@ -6,8 +6,12 @@ use std::iter::FromIterator;
 use std::ops::Index;
 
 use indexmap::IndexMap;
+#[cfg(all(feature = "shuttle", test))]
+use shuttle::sync::RwLock;
 use stable_deref_trait::StableDeref;
-use std::sync::{RwLock, TryLockError};
+#[cfg(not(all(feature = "shuttle", test)))]
+use std::sync::RwLock;
+use std::sync::TryLockError;
 
 /// Append-only threadsafe version of `indexmap::IndexMap` where
 /// insertion does not require mutable access
@@ -19,9 +23,10 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for FrozenIndexMap<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.map.try_read() {
             Ok(guard) => guard.fmt(f),
-            Err(TryLockError::Poisoned(err)) => {
-                f.debug_tuple("FrozenIndexMap").field(&&**err.get_ref()).finish()
-            }
+            Err(TryLockError::Poisoned(err)) => f
+                .debug_tuple("FrozenIndexMap")
+                .field(&&**err.get_ref())
+                .finish(),
             Err(TryLockError::WouldBlock) => {
                 struct LockedPlaceholder;
                 impl fmt::Debug for LockedPlaceholder {
@@ -222,6 +227,7 @@ impl<K, V, S> FrozenIndexMap<K, V, S> {
     ///
     /// This is safe, as it requires a `&mut self`, ensuring nothing is using
     /// the 'frozen' contents.
+    #[cfg(not(feature = "shuttle"))]
     pub fn as_mut(&mut self) -> &mut IndexMap<K, V, S> {
         self.map.get_mut().unwrap()
     }
@@ -289,5 +295,118 @@ impl<K: Eq + Hash, V, S: Default> Default for FrozenIndexMap<K, V, S> {
         Self {
             map: RwLock::new(Default::default()),
         }
+    }
+}
+
+#[cfg(all(feature = "shuttle", test))]
+mod tests {
+    use shuttle::rand::{thread_rng, Rng};
+    use shuttle::thread;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_insert_idempotent() {
+        shuttle::check_random(
+            || {
+                let map = Arc::new(super::FrozenIndexMap::new());
+                let map_clone = map.clone();
+                let t1 = thread::spawn(move || {
+                    let i1 = map.insert(1, Box::new("a"));
+                    let i2 = map.insert(1, Box::new("dummy"));
+                    assert_eq!(i1, i2);
+                    *i1
+                });
+                let t2 = thread::spawn(move || {
+                    let i1 = map_clone.insert(1, Box::new("b"));
+                    let i2 = map_clone.insert(1, Box::new("dummy"));
+                    assert_eq!(i1, i2);
+                    *i1
+                });
+                let v1 = t1.join().unwrap();
+                let v2 = t2.join().unwrap();
+                assert_eq!(v1, v2);
+            },
+            100,
+        )
+    }
+
+    #[test]
+    fn test_insert_full_incremental() {
+        shuttle::check_random(
+            || {
+                let map = Arc::new(super::FrozenIndexMap::new());
+                let map_clone = map.clone();
+                let t1 = thread::spawn(move || {
+                    let (idx1, _) = map.insert_full(11, Box::new("a"));
+                    idx1
+                });
+                let t2 = thread::spawn(move || {
+                    let (idx2, _) = map_clone.insert_full(22, Box::new("b"));
+                    idx2
+                });
+                let idx1 = t1.join().unwrap();
+                let idx2 = t2.join().unwrap();
+                assert_eq!(0, std::cmp::min(idx1, idx2));
+                assert_eq!(1, std::cmp::max(idx2, idx1));
+            },
+            100,
+        )
+    }
+
+    #[test]
+    fn test_get_index() {
+        shuttle::check_random(
+            || {
+                let map = Arc::new(super::FrozenIndexMap::new());
+                let map_clone = map.clone();
+                let map_clone2 = map.clone();
+                let t1 = thread::spawn(move || {
+                    let (idx1, v) = map.insert_full(Box::new("foo"), Box::new("a"));
+                    ("a" == *v).then(|| idx1)
+                });
+                let t2 = thread::spawn(move || {
+                    let (idx2, v) = map_clone.insert_full(Box::new("foo"), Box::new("b"));
+                    ("b" == *v).then(|| idx2)
+                });
+                let idx1 = t1.join().unwrap();
+                let idx2 = t2.join().unwrap();
+
+                let idx = idx1.or(idx2).unwrap();
+                assert_eq!(idx, 0);
+                assert_eq!(*map_clone2.get_index(idx).unwrap().0, "foo");
+            },
+            100,
+        )
+    }
+
+    #[test]
+    fn test_len() {
+        const ITEMS: usize = 100;
+        shuttle::check_random(
+            || {
+                let map = Arc::new(super::FrozenIndexMap::new());
+                let map_clone = map.clone();
+                let map_clone2 = map.clone();
+                let t1 = thread::spawn(move || {
+                    for i in 0..ITEMS {
+                        let v = thread_rng().gen::<u64>();
+                        map.insert(i, Box::new(v));
+                    }
+                });
+                let t2 = thread::spawn(move || {
+                    for i in 0..ITEMS {
+                        let v = thread_rng().gen::<u64>();
+                        map_clone.insert(i, Box::new(v));
+                    }
+                });
+                t1.join().unwrap();
+                t2.join().unwrap();
+                for i in 0..ITEMS {
+                    assert!(map_clone2.get(&i).is_some());
+                }
+                assert_eq!(map_clone2.insert_full(ITEMS, Box::new(0)).0, ITEMS);
+            },
+            100,
+        )
     }
 }
