@@ -97,10 +97,10 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
     /// assert_eq!(map.get(&1), Some(&"a"));
     /// assert_eq!(map.get(&2), None);
     /// ```
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V::Target>
+    pub fn get<Q>(&self, k: &Q) -> Option<&V::Target>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -128,10 +128,10 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenMap<K, V, S> {
     /// assert_eq!(map.map_get(&1, Clone::clone), Some(Box::new("a")));
     /// assert_eq!(map.map_get(&2, Clone::clone), None);
     /// ```
-    pub fn map_get<Q: ?Sized, T, F>(&self, k: &Q, f: F) -> Option<T>
+    pub fn map_get<Q, T, F>(&self, k: &Q, f: F) -> Option<T>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
         F: FnOnce(&V) -> T,
     {
         assert!(!self.in_use.get());
@@ -192,10 +192,10 @@ impl<K: Eq + Hash + StableDeref, V: StableDeref, S: BuildHasher> FrozenMap<K, V,
     /// assert_eq!(map.get_key_value(&"1"), Some((&"1", &"a")));
     /// assert_eq!(map.get_key_value(&"2"), None);
     /// ```
-    pub fn get_key_value<Q: ?Sized>(&self, k: &Q) -> Option<(&K::Target, &V::Target)>
+    pub fn get_key_value<Q>(&self, k: &Q) -> Option<(&K::Target, &V::Target)>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -279,7 +279,7 @@ impl<K: Clone, V: Clone, S: Clone> Clone for FrozenMap<K, V, S> {
             in_use: Cell::from(false),
         };
         self.in_use.set(false);
-        return self_clone;
+        self_clone
     }
 }
 
@@ -384,10 +384,10 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     /// assert_eq!(map.get(&1), Some(&"a"));
     /// assert_eq!(map.get(&2), None);
     /// ```
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V::Target>
+    pub fn get<Q>(&self, k: &Q) -> Option<&V::Target>
     where
         K: Borrow<Q>,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -415,10 +415,10 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     /// assert_eq!(map.map_get(&1, Clone::clone), Some(Box::new("a")));
     /// assert_eq!(map.map_get(&2, Clone::clone), None);
     /// ```
-    pub fn map_get<Q: ?Sized, T, F>(&self, k: &Q, f: F) -> Option<T>
+    pub fn map_get<Q, T, F>(&self, k: &Q, f: F) -> Option<T>
     where
         K: Borrow<Q>,
-        Q: Ord,
+        Q: Ord + ?Sized,
         F: FnOnce(&V) -> T,
     {
         assert!(!self.in_use.get());
@@ -531,7 +531,7 @@ impl<K: Clone, V: Clone> Clone for FrozenBTreeMap<K, V> {
             in_use: Cell::from(false),
         };
         self.in_use.set(false);
-        return self_clone;
+        self_clone
     }
 }
 

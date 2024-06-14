@@ -62,7 +62,7 @@ impl<T: StableDeref> FrozenVec<T> {
     /// `index` must be in bounds, i.e. it must be less than `self.len()`
     pub unsafe fn get_unchecked(&self, index: usize) -> &T::Target {
         let vec = self.vec.get();
-        &**(*vec).get_unchecked(index)
+        (*vec).get_unchecked(index)
     }
 }
 
@@ -309,7 +309,7 @@ fn test_iteration() {
 fn test_accessors() {
     let vec: FrozenVec<String> = FrozenVec::new();
 
-    assert_eq!(vec.is_empty(), true);
+    assert!(vec.is_empty());
     assert_eq!(vec.len(), 0);
     assert_eq!(vec.first(), None);
     assert_eq!(vec.last(), None);
@@ -319,7 +319,7 @@ fn test_accessors() {
     vec.push("b".to_string());
     vec.push("c".to_string());
 
-    assert_eq!(vec.is_empty(), false);
+    assert!(!vec.is_empty());
     assert_eq!(vec.len(), 3);
     assert_eq!(vec.first(), Some("a"));
     assert_eq!(vec.last(), Some("c"));
@@ -332,7 +332,7 @@ fn test_non_stable_deref() {
     struct Moo(i32);
     let vec: FrozenVec<Moo> = FrozenVec::new();
 
-    assert_eq!(vec.is_empty(), true);
+    assert!(vec.is_empty());
     assert_eq!(vec.len(), 0);
     assert_eq!(vec.get_copy(1), None);
 
@@ -340,7 +340,7 @@ fn test_non_stable_deref() {
     vec.push(Moo(2));
     vec.push(Moo(3));
 
-    assert_eq!(vec.is_empty(), false);
+    assert!(!vec.is_empty());
     assert_eq!(vec.len(), 3);
     assert_eq!(vec.get_copy(1), Some(Moo(2)));
 }

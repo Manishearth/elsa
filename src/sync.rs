@@ -188,10 +188,10 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     /// assert_eq!(map.get(&1), Some(&"a"));
     /// assert_eq!(map.get(&2), None);
     /// ```
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V::Target>
+    pub fn get<Q>(&self, k: &Q) -> Option<&V::Target>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         let map = self.map.read().unwrap();
         let ret = unsafe { map.get(k).map(|x| &*(&**x as *const V::Target)) };
@@ -214,10 +214,10 @@ impl<K: Eq + Hash, V: StableDeref> FrozenMap<K, V> {
     /// assert_eq!(map.map_get(&1, Clone::clone), Some(Box::new("a")));
     /// assert_eq!(map.map_get(&2, Clone::clone), None);
     /// ```
-    pub fn map_get<Q: ?Sized, T, F>(&self, k: &Q, f: F) -> Option<T>
+    pub fn map_get<Q, T, F>(&self, k: &Q, f: F) -> Option<T>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
         F: FnOnce(&V) -> T,
     {
         let map = self.map.read().unwrap();
@@ -308,10 +308,10 @@ impl<K: Eq + Hash, V: Copy> FrozenMap<K, V> {
     /// assert_eq!(map.get_copy(&1), Some(6));
     /// assert_eq!(map.get_copy(&2), None);
     /// ```
-    pub fn get_copy<Q: ?Sized>(&self, k: &Q) -> Option<V>
+    pub fn get_copy<Q>(&self, k: &Q) -> Option<V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq + ?Sized,
     {
         let map = self.map.read().unwrap();
         map.get(k).cloned()
@@ -511,7 +511,7 @@ impl<T: StableDeref> FrozenVec<T> {
         let mut vec = self.vec.write().unwrap();
         let index = vec.len();
         vec.push(val);
-        return index;
+        index
     }
 
     pub fn get(&self, index: usize) -> Option<&T::Target> {
@@ -704,7 +704,7 @@ impl<T: Copy> Default for LockFreeFrozenVec<T> {
     /// any heap allocations until the first time data is pushed to it.
     fn default() -> Self {
         Self {
-            data: [Self::NULL; NUM_BUFFERS],
+            data: std::array::from_fn(|_| Self::null()),
             len: AtomicUsize::new(0),
             locked: AtomicBool::new(false),
         }
@@ -712,7 +712,10 @@ impl<T: Copy> Default for LockFreeFrozenVec<T> {
 }
 
 impl<T: Copy> LockFreeFrozenVec<T> {
-    const NULL: AtomicPtr<T> = AtomicPtr::new(std::ptr::null_mut());
+    const fn null() -> AtomicPtr<T> {
+        AtomicPtr::new(std::ptr::null_mut())
+    }
+
     pub fn new() -> Self {
         Default::default()
     }
@@ -752,7 +755,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         }
         self.lock(|| {
             // These values must be consistent with the pointer we got.
-            let len = self.len.load(Ordering::Acquire);
+            let len = self.len();
             let buffer_idx = buffer_index(len);
             let mut ptr = self.data[buffer_idx].load(Ordering::Acquire);
             if ptr.is_null() {
@@ -789,8 +792,7 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         // independently of the  read is fine. Worst case we
         // read an old length value and end up returning `None` even if
         // another thread already inserted the value.
-        let len = self.len.load(Ordering::Acquire);
-        if index >= len {
+        if index >= self.len() {
             return None;
         }
         let buffer_idx = buffer_index(index);
@@ -800,12 +802,22 @@ impl<T: Copy> LockFreeFrozenVec<T> {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.len.load(Ordering::Relaxed) == 0
+        self.len() == 0
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.len.load(Ordering::Acquire)
     }
 
     /// Load an element (if it exists). This operation is lock-free and
     /// performs no synchronized atomic operations. This is a useful primitive to
     /// implement your own data structure with newtypes around the index.
+    ///
+    /// ## Safety
+    ///
+    /// `index` must be in bounds, i.e. it must be less than `self.len()`
+    #[inline]
     pub unsafe fn get_unchecked(&self, index: usize) -> T {
         let buffer_idx = buffer_index(index);
         let buffer_ptr = self.data[buffer_idx].load(Ordering::Relaxed);
@@ -844,8 +856,8 @@ impl<T: Copy> LockFreeFrozenVec<T> {
 impl<T: Copy + PartialEq> PartialEq for LockFreeFrozenVec<T> {
     fn eq(&self, other: &Self) -> bool {
         // first check the length
-        let self_len = self.len.load(Ordering::Acquire);
-        let other_len = other.len.load(Ordering::Acquire);
+        let self_len = self.len();
+        let other_len = other.len();
         if self_len != other_len {
             return false;
         }
@@ -857,7 +869,8 @@ impl<T: Copy + PartialEq> PartialEq for LockFreeFrozenVec<T> {
                 return false;
             }
         }
-        return true;
+
+        true
     }
 }
 
@@ -897,7 +910,7 @@ fn test_non_lockfree_unchecked() {
 
 impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
     fn clone(&self) -> Self {
-        let mut coppied_data = [Self::NULL; NUM_BUFFERS];
+        let mut coppied_data = std::array::from_fn(|_| Self::null());
         // for each buffer, copy the data
         self.for_each_buffer(|buffer_slice, buffer_index| {
             // allocate a new buffer
@@ -916,11 +929,11 @@ impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
             *coppied_data[buffer_index].get_mut() = new_buffer_ptr;
         });
 
-        return Self {
+        Self {
             data: coppied_data,
-            len: AtomicUsize::new(self.len.load(Ordering::Relaxed)),
+            len: AtomicUsize::new(self.len()),
             locked: AtomicBool::new(false),
-        };
+        }
     }
 }
 
@@ -1015,10 +1028,10 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     /// assert_eq!(map.get(&1), Some(&"a"));
     /// assert_eq!(map.get(&2), None);
     /// ```
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V::Target>
+    pub fn get<Q>(&self, k: &Q) -> Option<&V::Target>
     where
         K: Borrow<Q>,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         let map = self.0.read().unwrap();
         let ret = unsafe { map.get(k).map(|x| &*(&**x as *const V::Target)) };
@@ -1061,10 +1074,10 @@ impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
     /// assert_eq!(map.map_get(&1, Clone::clone), Some(Box::new("a")));
     /// assert_eq!(map.map_get(&2, Clone::clone), None);
     /// ```
-    pub fn map_get<Q: ?Sized, T, F>(&self, k: &Q, f: F) -> Option<T>
+    pub fn map_get<Q, T, F>(&self, k: &Q, f: F) -> Option<T>
     where
         K: Borrow<Q>,
-        Q: Ord,
+        Q: Ord + ?Sized,
         F: FnOnce(&V) -> T,
     {
         let map = self.0.read().unwrap();
