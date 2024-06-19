@@ -704,7 +704,7 @@ impl<T: Copy> Default for LockFreeFrozenVec<T> {
     /// any heap allocations until the first time data is pushed to it.
     fn default() -> Self {
         Self {
-            data: [const { Self::null() }; NUM_BUFFERS],
+            data: Self::null(),
             len: AtomicUsize::new(0),
             locked: AtomicBool::new(false),
         }
@@ -712,8 +712,8 @@ impl<T: Copy> Default for LockFreeFrozenVec<T> {
 }
 
 impl<T: Copy> LockFreeFrozenVec<T> {
-    const fn null() -> AtomicPtr<T> {
-        AtomicPtr::new(std::ptr::null_mut())
+    const fn null() -> [AtomicPtr<T>; NUM_BUFFERS] {
+        [const { AtomicPtr::new(std::ptr::null_mut()) }; NUM_BUFFERS]
     }
 
     pub fn new() -> Self {
@@ -910,7 +910,7 @@ fn test_non_lockfree_unchecked() {
 
 impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
     fn clone(&self) -> Self {
-        let mut coppied_data = [const { Self::null() }; NUM_BUFFERS];
+        let mut coppied_data = Self::null();
         // for each buffer, copy the data
         self.for_each_buffer(|buffer_slice, buffer_index| {
             // allocate a new buffer
