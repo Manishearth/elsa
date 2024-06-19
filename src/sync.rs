@@ -704,7 +704,7 @@ impl<T: Copy> Default for LockFreeFrozenVec<T> {
     /// any heap allocations until the first time data is pushed to it.
     fn default() -> Self {
         Self {
-            data: std::array::from_fn(|_| Self::null()),
+            data: [const { Self::null() }; NUM_BUFFERS],
             len: AtomicUsize::new(0),
             locked: AtomicBool::new(false),
         }
@@ -910,7 +910,7 @@ fn test_non_lockfree_unchecked() {
 
 impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
     fn clone(&self) -> Self {
-        let mut coppied_data = std::array::from_fn(|_| Self::null());
+        let mut coppied_data = [const { Self::null() }; NUM_BUFFERS];
         // for each buffer, copy the data
         self.for_each_buffer(|buffer_slice, buffer_index| {
             // allocate a new buffer
@@ -931,6 +931,8 @@ impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
 
         Self {
             data: coppied_data,
+            // Since stores always use `Ordering::Release`, this call to `self.len()` (which uses `Ordering::Acquire`) reults
+            // in the operation overall being `Ordering::Relaxed`
             len: AtomicUsize::new(self.len()),
             locked: AtomicBool::new(false),
         }
