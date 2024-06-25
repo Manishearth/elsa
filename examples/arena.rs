@@ -52,5 +52,5 @@ impl<'arena> Arena<'arena> {
 }
 
 fn cmp_ref<T>(x: &T, y: &T) -> bool {
-    x as *const T as usize == y as *const T as usize
+    std::ptr::eq(x, y)
 }

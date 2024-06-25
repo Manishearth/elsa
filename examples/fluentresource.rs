@@ -9,12 +9,17 @@ impl<'mgr> FluentResource<'mgr> {
         // very simple parse step
         FluentResource(&s[0..1])
     }
+
+    pub fn get(&self) -> &'mgr str {
+        self.0
+    }
 }
 
 /// Stores loaded files and parsed ASTs
 ///
 /// Parsed ASTs are zero-copy and
 /// contain references to the files
+#[derive(Default)]
 pub struct ResourceManager<'mgr> {
     strings: FrozenMap<String, String>,
     resources: FrozenMap<String, Box<FluentResource<'mgr>>>,
@@ -22,10 +27,7 @@ pub struct ResourceManager<'mgr> {
 
 impl<'mgr> ResourceManager<'mgr> {
     pub fn new() -> Self {
-        ResourceManager {
-            strings: FrozenMap::new(),
-            resources: FrozenMap::new(),
-        }
+        Self::default()
     }
 
     pub fn get_resource(&'mgr self, path: &str) -> &'mgr FluentResource<'mgr> {
@@ -46,5 +48,6 @@ impl<'mgr> ResourceManager<'mgr> {
 fn main() {
     let manager = ResourceManager::new();
     let resource = manager.get_resource("somefile.ftl");
-    println!("{:?}", resource);
+
+    assert_eq!(resource.get(), "f");
 }
