@@ -8,6 +8,9 @@ use std::ops::Index;
 use indexmap::IndexMap;
 use stable_deref_trait::StableDeref;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 /// Append-only version of `indexmap::IndexMap` where
 /// insertion does not require mutable access
 pub struct FrozenIndexMap<K, V, S = RandomState> {
@@ -312,5 +315,39 @@ impl<T: Hash + Eq, S: PartialEq> PartialEq for FrozenIndexMap<T, S> {
         self.in_use.set(false);
         other.in_use.set(false);
         ret
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<K, V, S> Serialize for FrozenIndexMap<K, V, S>
+where
+    K: Serialize + Eq + Hash,
+    V: Serialize,
+    S: BuildHasher,
+{
+    fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
+    where
+        Ser: Serializer,
+    {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let map_serialized = unsafe { self.map.get().as_ref().unwrap() }.serialize(serializer);
+        self.in_use.set(false);
+        return map_serialized;
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, K, V, S> Deserialize<'de> for FrozenIndexMap<K, V, S>
+where
+    K: Deserialize<'de> + Eq + Hash,
+    V: Deserialize<'de>,
+    S: BuildHasher + Default,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        IndexMap::deserialize(deserializer).map(FrozenIndexMap::from)
     }
 }

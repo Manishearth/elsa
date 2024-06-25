@@ -25,8 +25,16 @@ use std::sync::atomic::Ordering;
 use std::sync::RwLock;
 use std::sync::TryLockError;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 /// Append-only threadsafe version of `std::collections::HashMap` where
 /// insertion does not require mutable access
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(bound(deserialize = "K: Eq + Hash + Deserialize<'de>, V: Deserialize<'de>"))
+)]
 pub struct FrozenMap<K, V> {
     map: RwLock<HashMap<K, V>>,
 }
@@ -431,8 +439,24 @@ impl<K: Eq + Hash, V: PartialEq> PartialEq for FrozenMap<K, V> {
     }
 }
 
+#[test]
+fn test_sync_frozen_map() {
+    #[cfg(feature = "serde")]
+    {
+        let map = FrozenMap::new();
+        map.insert(String::from("a"), String::from("b"));
+
+        let map_json = serde_json::to_string(&map).unwrap();
+        assert_eq!(map_json, "{\"map\":{\"a\":\"b\"}}");
+
+        let map_serde = serde_json::from_str::<FrozenMap<String, String>>(&map_json).unwrap();
+        assert_eq!(map, map_serde);
+    }
+}
+
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FrozenVec<T> {
     vec: RwLock<Vec<T>>,
 }
@@ -620,6 +644,20 @@ impl<T: PartialEq> PartialEq for FrozenVec<T> {
         let self_ref: &Vec<T> = &self.vec.read().unwrap();
         let other_ref: &Vec<T> = &other.vec.read().unwrap();
         self_ref == other_ref
+    }
+}
+
+#[test]
+fn test_sync_frozen_vec() {
+    #[cfg(feature = "serde")]
+    {
+        let vec = FrozenVec::new();
+        vec.push(String::from("a"));
+
+        let vec_json = serde_json::to_string(&vec).unwrap();
+        assert_eq!(vec_json, "{\"vec\":[\"a\"]}");
+        let vec_serde = serde_json::from_str::<FrozenVec<String>>(&vec_json).unwrap();
+        assert_eq!(vec, vec_serde);
     }
 }
 
@@ -939,9 +977,52 @@ impl<T: Copy + Clone> Clone for LockFreeFrozenVec<T> {
     }
 }
 
+#[cfg(feature = "serde")]
+impl<T: Copy + Serialize> Serialize for LockFreeFrozenVec<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeSeq;
+
+        let len = self.len.load(Ordering::Relaxed);
+        let mut seq = serializer.serialize_seq(Some(len))?;
+        for i in 0..len {
+            seq.serialize_element(&self.get(i).unwrap())?;
+        }
+        seq.end()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T: Copy + Deserialize<'de>> Deserialize<'de> for LockFreeFrozenVec<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::{SeqAccess, Visitor};
+        use std::marker::PhantomData;
+
+        struct SeqVisitor<T>(PhantomData<T>);
+
+        impl<'de, T: Copy + Deserialize<'de>> Visitor<'de> for SeqVisitor<T> {
+            type Value = LockFreeFrozenVec<T>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a sequence of elements")
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                let ret = LockFreeFrozenVec::new();
+                while let Some(elem) = seq.next_element()? {
+                    ret.push(elem);
+                }
+                Ok(ret)
+            }
+        }
+
+        deserializer.deserialize_seq(SeqVisitor(PhantomData))
+    }
+}
+
 #[test]
 fn test_non_lockfree() {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     struct Moo(i32);
 
     let vec = LockFreeFrozenVec::new();
@@ -997,6 +1078,23 @@ fn test_non_lockfree() {
 
     // Test dropping empty vecs
     LockFreeFrozenVec::<()>::new();
+
+    #[cfg(feature = "serde")]
+    {
+        let vec = LockFreeFrozenVec::new();
+        let json_empty = serde_json::to_string(&vec).unwrap();
+        let vec_empty = serde_json::from_str::<LockFreeFrozenVec<Moo>>(&json_empty).unwrap();
+        assert_eq!(vec_empty.get(0), None);
+
+        vec.push(Moo(1));
+        vec.push(Moo(2));
+        vec.push(Moo(3));
+        let json = serde_json::to_string(&vec).unwrap();
+        let serde_vec = serde_json::from_str::<LockFreeFrozenVec<Moo>>(&json).unwrap();
+        assert_eq!(serde_vec.get(0), Some(Moo(1)));
+        assert_eq!(serde_vec.get(1), Some(Moo(2)));
+        assert_eq!(serde_vec.get(2), Some(Moo(3)));
+    }
 }
 
 // TODO: Implement IntoIterator for LockFreeFrozenVec
@@ -1004,6 +1102,11 @@ fn test_non_lockfree() {
 /// Append-only threadsafe version of `std::collections::BTreeMap` where
 /// insertion does not require mutable access
 #[derive(Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(bound(deserialize = "K: Ord + Deserialize<'de>, V: Deserialize<'de>"))
+)]
 pub struct FrozenBTreeMap<K, V>(RwLock<BTreeMap<K, V>>);
 
 impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
@@ -1196,5 +1299,20 @@ impl<K: PartialEq, V: PartialEq> PartialEq for FrozenBTreeMap<K, V> {
         let self_ref: &BTreeMap<K, V> = &self.0.read().unwrap();
         let other_ref: &BTreeMap<K, V> = &other.0.read().unwrap();
         self_ref == other_ref
+    }
+}
+
+#[test]
+fn test_sync_frozen_btreemap() {
+    #[cfg(feature = "serde")]
+    {
+        let map = FrozenBTreeMap::new();
+        map.insert(String::from("a"), String::from("b"));
+
+        let map_json = serde_json::to_string(&map).unwrap();
+        assert_eq!(map_json, "{\"a\":\"b\"}");
+
+        let map_serde = serde_json::from_str::<FrozenBTreeMap<String, String>>(&map_json).unwrap();
+        assert_eq!(map, map_serde);
     }
 }
