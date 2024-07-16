@@ -74,9 +74,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     /// # Example
     /// ```
     /// use elsa::index_set::FrozenIndexSet;
-    /// let map = FrozenIndexSet::new();
-    /// assert_eq!(map.insert_full(Box::new("a")), (0, &"a"));
-    /// assert_eq!(map.insert_full(Box::new("b")), (1, &"b"));
+    /// let set = FrozenIndexSet::new();
+    /// assert_eq!(set.insert_full(Box::new("a")), (0, &"a"));
+    /// assert_eq!(set.insert_full(Box::new("b")), (1, &"b"));
     /// ```
     pub fn insert_full(&self, value: T) -> (usize, &T::Target) {
         assert!(!self.in_use.get());
@@ -163,8 +163,8 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
         assert!(!self.in_use.get());
         self.in_use.set(true);
         let ret = unsafe {
-            let map = self.set.get();
-            (*map).get_index_of(k)
+            let set = self.set.get();
+            (*set).get_index_of(k)
         };
         self.in_use.set(false);
         ret

@@ -134,7 +134,7 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use elsa::FrozenIndexMap;
+    /// use elsa::index_map::FrozenIndexMap;
     ///
     /// let map = FrozenIndexMap::new();
     /// map.insert(1, Box::new("a"));
@@ -181,6 +181,33 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
         let ret = unsafe {
             let map = self.map.get();
             (*map).get_index(index).map(|(k, v)| (&**k, &**v))
+        };
+        self.in_use.set(false);
+        ret
+    }
+
+    /// Returns a reference to the key, along with its index and a reference to its value
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::index_map::FrozenIndexMap;
+    ///
+    /// let map = FrozenIndexMap::new();
+    /// map.insert("1", Box::new("a"));
+    /// assert_eq!(map.get_full("1"), Some((0, "1", &"a")));
+    /// assert_eq!(map.get_full("2"), None);
+    /// ```
+    pub fn get_full<Q>(&self, k: &Q) -> Option<(usize, &K::Target, &V::Target)>
+    where
+        Q: ?Sized + Hash + Equivalent<K>,
+        K: StableDeref,
+    {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let ret = unsafe {
+            let map = self.map.get();
+            (*map).get_full(k).map(|(i, k, v)| (i, &**k, &**v))
         };
         self.in_use.set(false);
         ret
