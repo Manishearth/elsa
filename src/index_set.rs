@@ -8,6 +8,8 @@ use std::ops::Index;
 use indexmap::IndexSet;
 use stable_deref_trait::StableDeref;
 
+use crate::index_map::Equivalent;
+
 /// Append-only version of `indexmap::IndexSet` where
 /// insertion does not require mutable access
 pub struct FrozenIndexSet<T, S = RandomState> {
@@ -137,6 +139,32 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
         let ret = unsafe {
             let set = self.set.get();
             (*set).get(k).map(|x| &**x)
+        };
+        self.in_use.set(false);
+        ret
+    }
+
+    /// Returns the index corresponding to the value if present in the set
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenIndexSet;
+    ///
+    /// let set = FrozenIndexSet::new();
+    /// set.insert(Box::new("a"));
+    /// assert_eq!(set.get_index_of(&Box::new("a")), Some(0));
+    /// assert_eq!(set.get_index_of(&Box::new("b")), None);
+    /// ```
+    pub fn get_index_of<Q>(&self, k: &Q) -> Option<usize>
+    where
+        Q: ?Sized + Hash + Equivalent<T>,
+    {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let ret = unsafe {
+            let map = self.set.get();
+            (*map).get_index_of(k)
         };
         self.in_use.set(false);
         ret
