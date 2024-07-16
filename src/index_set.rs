@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::cell::{Cell, UnsafeCell};
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
@@ -118,6 +117,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     // }
 
     /// Returns a reference to the value passed as argument if present in the set.
+    /// 
+    /// # Arguments
+    /// * `k` may be any type that implements [`Equivalent<T>`].
     ///
     /// # Examples
     ///
@@ -129,10 +131,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     /// assert_eq!(set.get(&Box::new("a")), Some(&"a"));
     /// assert_eq!(set.get(&Box::new("b")), None);
     /// ```
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&T::Target>
+    pub fn get<Q>(&self, k: &Q) -> Option<&T::Target>
     where
-        T: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: ?Sized + Hash + Equivalent<T>,
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -145,7 +146,10 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     }
 
     /// Returns the index corresponding to the value if present in the set
-    ///
+    /// 
+    /// # Arguments
+    /// * `k` may be any type that implements [`Equivalent<T>`].
+    /// 
     /// # Examples
     ///
     /// ```
@@ -172,6 +176,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
 
     /// Returns a reference to the value passed as argument if present in the set,
     /// along with its index
+    /// 
+    /// # Arguments
+    /// * `k` may be any type that implements [`Equivalent<T>`].
     ///
     /// # Examples
     ///
@@ -183,10 +190,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     /// assert_eq!(set.get_full(&Box::new("a")), Some((0, &"a")));
     /// assert_eq!(set.get_full(&Box::new("b")), None);
     /// ```
-    pub fn get_full<Q: ?Sized>(&self, k: &Q) -> Option<(usize, &T::Target)>
+    pub fn get_full<Q>(&self, k: &Q) -> Option<(usize, &T::Target)>
     where
-        T: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: ?Sized + Hash + Equivalent<T>,
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
