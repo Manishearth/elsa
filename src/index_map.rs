@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::cell::{Cell, UnsafeCell};
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
@@ -7,6 +6,8 @@ use std::ops::Index;
 
 use indexmap::IndexMap;
 use stable_deref_trait::StableDeref;
+
+pub use indexmap::Equivalent;
 
 /// Append-only version of `indexmap::IndexMap` where
 /// insertion does not require mutable access
@@ -41,10 +42,6 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     ///
     /// Existing values are never overwritten.
     ///
-    /// The key may be any borrowed form of the map's key type, but
-    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
-    /// the key type.
-    ///
     /// # Example
     /// ```
     /// use elsa::index_map::FrozenIndexMap;
@@ -72,10 +69,6 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     ///
     /// Existing values are never overwritten.
     ///
-    /// The key may be any borrowed form of the map's key type, but
-    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
-    /// the key type.
-    ///
     /// # Example
     /// ```
     /// use elsa::index_map::FrozenIndexMap;
@@ -97,10 +90,9 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     }
 
     /// Returns a reference to the value corresponding to the key.
-    ///
-    /// The key may be any borrowed form of the map's key type, but
-    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
-    /// the key type.
+    /// 
+    /// # Arguments
+    /// * `k` may be any type that implements [`Equivalent<K>`].
     ///
     /// # Examples
     ///
@@ -112,10 +104,9 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     /// assert_eq!(map.get(&1), Some(&"a"));
     /// assert_eq!(map.get(&2), None);
     /// ```
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V::Target>
+    pub fn get<Q>(&self, k: &Q) -> Option<&V::Target>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: ?Sized + Hash + Equivalent<K>,
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -127,11 +118,36 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
         ret
     }
 
-    /// Returns a reference to the key-value mapping corresponding to an index.
+    /// Returns the index corresponding to the key
+    /// 
+    /// # Arguments
+    /// * `k` may be any type that implements [`Equivalent<K>`].
     ///
-    /// The key may be any borrowed form of the map's key type, but
-    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
-    /// the key type.
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::index_map::FrozenIndexMap;
+    ///
+    /// let map = FrozenIndexMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// assert_eq!(map.get_index_of(&1), Some(0));
+    /// assert_eq!(map.get_index_of(&2), None);
+    /// ```
+    pub fn get_index_of<Q>(&self, k: &Q) -> Option<usize>
+    where
+        Q: ?Sized + Hash + Equivalent<K>,
+    {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let ret = unsafe {
+            let map = self.map.get();
+            (*map).get_index_of(k)
+        };
+        self.in_use.set(false);
+        ret
+    }
+
+    /// Returns a reference to the key-value mapping corresponding to an index.
     ///
     /// # Examples
     ///
@@ -158,11 +174,40 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
         ret
     }
 
+    /// Returns a reference to the key, along with its index and a reference to its value
+    /// 
+    /// # Arguments
+    /// * `k` may be any type that implements [`Equivalent<K>`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::index_map::FrozenIndexMap;
+    ///
+    /// let map = FrozenIndexMap::new();
+    /// map.insert("1", Box::new("a"));
+    /// assert_eq!(map.get_full("1"), Some((0, "1", &"a")));
+    /// assert_eq!(map.get_full("2"), None);
+    /// ```
+    pub fn get_full<Q>(&self, k: &Q) -> Option<(usize, &K::Target, &V::Target)>
+    where
+        Q: ?Sized + Hash + Equivalent<K>,
+        K: StableDeref,
+    {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let ret = unsafe {
+            let map = self.map.get();
+            (*map).get_full(k).map(|(i, k, v)| (i, &**k, &**v))
+        };
+        self.in_use.set(false);
+        ret
+    }
+
     /// Applies a function to the owner of the value corresponding to the key (if any).
     ///
-    /// The key may be any borrowed form of the map's key type, but
-    /// [`Hash`] and [`Eq`] on the borrowed form *must* match those for
-    /// the key type.
+    /// # Arguments
+    /// * `k` may be any type that implements [`Equivalent<K>`].
     ///
     /// # Examples
     ///
@@ -174,10 +219,9 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     /// assert_eq!(map.map_get(&1, Clone::clone), Some(Box::new("a")));
     /// assert_eq!(map.map_get(&2, Clone::clone), None);
     /// ```
-    pub fn map_get<Q: ?Sized, T, F>(&self, k: &Q, f: F) -> Option<T>
+    pub fn map_get<Q, T, F>(&self, k: &Q, f: F) -> Option<T>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: ?Sized + Hash + Equivalent<K>,
         F: FnOnce(&V) -> T,
     {
         assert!(!self.in_use.get());
@@ -246,10 +290,10 @@ impl<K, V, S> From<IndexMap<K, V, S>> for FrozenIndexMap<K, V, S> {
     }
 }
 
-impl<Q: ?Sized, K: Eq + Hash, V: StableDeref, S: BuildHasher> Index<&Q> for FrozenIndexMap<K, V, S>
+impl<Q, K, V, S> Index<&Q> for FrozenIndexMap<K, V, S>
 where
-    Q: Eq + Hash,
-    K: Eq + Hash + Borrow<Q>,
+    Q: ?Sized + Hash + Equivalent<K>,
+    K: Eq + Hash,
     V: StableDeref,
     S: BuildHasher,
 {
@@ -265,7 +309,7 @@ where
     /// assert_eq!(map[&1], "a");
     /// ```
     fn index(&self, idx: &Q) -> &V::Target {
-        self.get(&idx)
+        self.get(idx)
             .expect("attempted to index FrozenIndexMap with unknown key")
     }
 }

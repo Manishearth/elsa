@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::cell::{Cell, UnsafeCell};
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
@@ -7,6 +6,8 @@ use std::ops::Index;
 
 use indexmap::IndexSet;
 use stable_deref_trait::StableDeref;
+
+use crate::index_map::Equivalent;
 
 /// Append-only version of `indexmap::IndexSet` where
 /// insertion does not require mutable access
@@ -72,9 +73,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     /// # Example
     /// ```
     /// use elsa::index_set::FrozenIndexSet;
-    /// let map = FrozenIndexSet::new();
-    /// assert_eq!(map.insert_full(Box::new("a")), (0, &"a"));
-    /// assert_eq!(map.insert_full(Box::new("b")), (1, &"b"));
+    /// let set = FrozenIndexSet::new();
+    /// assert_eq!(set.insert_full(Box::new("a")), (0, &"a"));
+    /// assert_eq!(set.insert_full(Box::new("b")), (1, &"b"));
     /// ```
     pub fn insert_full(&self, value: T) -> (usize, &T::Target) {
         assert!(!self.in_use.get());
@@ -116,6 +117,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     // }
 
     /// Returns a reference to the value passed as argument if present in the set.
+    /// 
+    /// # Arguments
+    /// * `k` may be any type that implements [`Equivalent<T>`].
     ///
     /// # Examples
     ///
@@ -127,10 +131,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     /// assert_eq!(set.get(&Box::new("a")), Some(&"a"));
     /// assert_eq!(set.get(&Box::new("b")), None);
     /// ```
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&T::Target>
+    pub fn get<Q>(&self, k: &Q) -> Option<&T::Target>
     where
-        T: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: ?Sized + Hash + Equivalent<T>,
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
@@ -142,8 +145,40 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
         ret
     }
 
+    /// Returns the index corresponding to the value if present in the set
+    /// 
+    /// # Arguments
+    /// * `k` may be any type that implements [`Equivalent<T>`].
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenIndexSet;
+    ///
+    /// let set = FrozenIndexSet::new();
+    /// set.insert(Box::new("a"));
+    /// assert_eq!(set.get_index_of(&Box::new("a")), Some(0));
+    /// assert_eq!(set.get_index_of(&Box::new("b")), None);
+    /// ```
+    pub fn get_index_of<Q>(&self, k: &Q) -> Option<usize>
+    where
+        Q: ?Sized + Hash + Equivalent<T>,
+    {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let ret = unsafe {
+            let set = self.set.get();
+            (*set).get_index_of(k)
+        };
+        self.in_use.set(false);
+        ret
+    }
+
     /// Returns a reference to the value passed as argument if present in the set,
     /// along with its index
+    /// 
+    /// # Arguments
+    /// * `k` may be any type that implements [`Equivalent<T>`].
     ///
     /// # Examples
     ///
@@ -155,10 +190,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     /// assert_eq!(set.get_full(&Box::new("a")), Some((0, &"a")));
     /// assert_eq!(set.get_full(&Box::new("b")), None);
     /// ```
-    pub fn get_full<Q: ?Sized>(&self, k: &Q) -> Option<(usize, &T::Target)>
+    pub fn get_full<Q>(&self, k: &Q) -> Option<(usize, &T::Target)>
     where
-        T: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: ?Sized + Hash + Equivalent<T>,
     {
         assert!(!self.in_use.get());
         self.in_use.set(true);
