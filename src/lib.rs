@@ -11,6 +11,8 @@
 //! The typical use case is having a global cache of strings or other data which the rest of the program borrows from.
 
 pub mod map;
+#[cfg(feature = "hash-set")]
+pub mod set;
 pub mod vec;
 
 #[cfg(feature = "indexmap")]
@@ -21,6 +23,8 @@ pub mod index_set;
 pub mod sync;
 
 pub use map::{FrozenBTreeMap, FrozenMap};
+#[cfg(feature = "hash-set")]
+pub use set::{FrozenBTreeSet, FrozenSet};
 pub use vec::FrozenVec;
 
 #[cfg(feature = "indexmap")]
