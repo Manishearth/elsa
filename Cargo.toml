@@ -13,7 +13,6 @@ categories = ["data-structures", "caching"]
 [dependencies]
 stable_deref_trait = "1.1.1"
 indexmap = { version = "2.0.2", optional = true }
-hashbrown = { version = "0.15.1", optional = true }
 
 [package.metadata.docs.rs]
 features = ["indexmap"]
@@ -26,4 +25,3 @@ required-features = ["indexmap"]
 [features]
 default = []
 indexmap = ["dep:indexmap"]
-hash-set = ["dep:hashbrown"]

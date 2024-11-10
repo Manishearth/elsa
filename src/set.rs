@@ -1,8 +1,7 @@
 use std::borrow::Borrow;
 use std::cell::{Cell, UnsafeCell};
 use std::collections::hash_map::RandomState;
-use std::collections::BTreeSet;
-use hashbrown::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::Index;
@@ -75,7 +74,15 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenSet<T, S> {
         self.in_use.set(true);
         let ret = unsafe {
             let set = self.set.get();
-            &*(*set).get_or_insert(value)
+            //TODO: Use hash-set-entry get_or_insert() once stable
+            if let Some(ret) = (*set).get(&value) {
+                ret
+            } else {
+                let ptr = &value as *const T;
+                (*set).insert(value);
+                // Safe thanks to T being StableDeref
+                &*ptr
+            }
         };
         self.in_use.set(false);
         ret
@@ -363,8 +370,6 @@ impl<T> FrozenBTreeSet<T> {
     pub fn into_set(self) -> BTreeSet<T> {
         self.set.into_inner()
     }
-
-    // TODO add more
 }
 
 impl<T> std::convert::AsMut<BTreeSet<T>> for FrozenBTreeSet<T> {
