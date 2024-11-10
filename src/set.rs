@@ -293,8 +293,14 @@ impl<T: Clone + Ord + StableDeref> FrozenBTreeSet<T> {
         self.in_use.set(true);
         let ret = unsafe {
             let set = self.set.get();
-            (*set).insert(value.clone());
-            &*(*set).get(&value).unwrap()
+            if let Some(ret) = (*set).get(&value) {
+                ret
+            } else {
+                let ptr = &value as *const T;
+                (*set).insert(value);
+                // Safe thanks to T being StableDeref
+                &*ptr
+            }
         };
         self.in_use.set(false);
         ret
