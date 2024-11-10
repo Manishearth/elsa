@@ -4,7 +4,6 @@ use std::collections::hash_map::RandomState;
 use std::collections::{BTreeSet, HashSet};
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
-use std::ops::Index;
 
 use stable_deref_trait::StableDeref;
 
@@ -37,7 +36,7 @@ impl<T: Eq + Hash> FrozenSet<T> {
     ///
     /// let set = FrozenSet::new();
     /// assert_eq!(set.len(), 0);
-    /// set.insert(1, Box::new("a"));
+    /// set.insert("a".to_string());
     /// assert_eq!(set.len(), 1);
     /// ```
     pub fn len(&self) -> usize {
@@ -58,7 +57,7 @@ impl<T: Eq + Hash> FrozenSet<T> {
     ///
     /// let set = FrozenSet::new();
     /// assert_eq!(set.is_empty(), true);
-    /// set.insert(1, Box::new("a"));
+    /// set.insert("a".to_string());
     /// assert_eq!(set.is_empty(), false);
     /// ```
     pub fn is_empty(&self) -> bool {
@@ -100,9 +99,9 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenSet<T, S> {
     /// use elsa::FrozenSet;
     ///
     /// let set = FrozenSet::new();
-    /// set.insert(1, Box::new("a"));
-    /// assert_eq!(set.get(&1), Some(&"a"));
-    /// assert_eq!(set.get(&2), None);
+    /// set.insert("a".to_string());
+    /// assert_eq!(set.get("a"), Some("a"));
+    /// assert_eq!(set.get("b"), None);
     /// ```
     pub fn get<Q>(&self, value: &Q) -> Option<&T::Target>
     where
@@ -131,12 +130,12 @@ impl<T, S> FrozenSet<T, S> {
     /// use elsa::FrozenSet;
     ///
     /// let set = FrozenSet::new();
-    /// set.insert(1, Box::new("a"));
-    /// set.insert(2, Box::new("b"));
+    /// set.insert("a".to_string());
+    /// set.insert("b".to_string());
     /// let mut tuple_vec = set.into_tuple_vec();
     /// tuple_vec.sort();
     ///
-    /// assert_eq!(tuple_vec, vec![(1, Box::new("a")), (2, Box::new("b"))]);
+    /// assert_eq!(tuple_vec, vec!["a", "b"]);
     /// ```
     pub fn into_tuple_vec(self) -> Vec<T> {
         self.set.into_inner().into_iter().collect::<Vec<_>>()
@@ -163,29 +162,6 @@ impl<T, S> From<HashSet<T, S>> for FrozenSet<T, S> {
             set: UnsafeCell::new(set),
             in_use: Cell::new(false),
         }
-    }
-}
-
-impl<Q: ?Sized, T, S> Index<&Q> for FrozenSet<T, S>
-where
-    Q: Eq + Hash,
-    T: Eq + Hash + StableDeref + Borrow<Q>,
-    S: BuildHasher,
-{
-    type Output = T::Target;
-
-    /// # Examples
-    ///
-    /// ```
-    /// use elsa::FrozenSet;
-    ///
-    /// let set = FrozenSet::new();
-    /// set.insert(1, Box::new("a"));
-    /// assert_eq!(set[&1], "a");
-    /// ```
-    fn index(&self, idx: &Q) -> &T::Target {
-        self.get(idx)
-            .expect("attempted to index FrozenSet with unknown key")
     }
 }
 
@@ -263,7 +239,7 @@ impl<T: Clone + Ord + StableDeref> FrozenBTreeSet<T> {
     ///
     /// let set = FrozenBTreeSet::new();
     /// assert_eq!(set.len(), 0);
-    /// set.insert(1, Box::new("a"));
+    /// set.insert("a".to_string());
     /// assert_eq!(set.len(), 1);
     /// ```
     pub fn len(&self) -> usize {
@@ -284,7 +260,7 @@ impl<T: Clone + Ord + StableDeref> FrozenBTreeSet<T> {
     ///
     /// let set = FrozenBTreeSet::new();
     /// assert_eq!(set.is_empty(), true);
-    /// set.insert(1, Box::new("a"));
+    /// set.insert("a".to_string());
     /// assert_eq!(set.is_empty(), false);
     /// ```
     pub fn is_empty(&self) -> bool {
@@ -293,7 +269,7 @@ impl<T: Clone + Ord + StableDeref> FrozenBTreeSet<T> {
 }
 
 impl<T: Clone + Ord + StableDeref> FrozenBTreeSet<T> {
-    // these should never return &K or &V
+    // these should never return &T
     // these should never delete any entries
     pub fn insert(&self, value: T) -> &T::Target {
         assert!(!self.in_use.get());
@@ -325,9 +301,9 @@ impl<T: Clone + Ord + StableDeref> FrozenBTreeSet<T> {
     /// use elsa::FrozenBTreeSet;
     ///
     /// let set = FrozenBTreeSet::new();
-    /// set.insert(1, Box::new("a"));
-    /// assert_eq!(set.get(&1), Some(&"a"));
-    /// assert_eq!(set.get(&2), None);
+    /// set.insert("a".to_string());
+    /// assert_eq!(set.get("a"), Some("a"));
+    /// assert_eq!(set.get("b"), None);
     /// ```
     pub fn get<Q>(&self, value: &Q) -> Option<&T::Target>
     where
@@ -356,12 +332,12 @@ impl<T> FrozenBTreeSet<T> {
     /// use elsa::FrozenBTreeSet;
     ///
     /// let set = FrozenBTreeSet::new();
-    /// set.insert(1, Box::new("a"));
-    /// set.insert(2, Box::new("b"));
+    /// set.insert("a".to_string());
+    /// set.insert("b".to_string());
     /// let mut tuple_vec = set.into_tuple_vec();
     /// tuple_vec.sort();
     ///
-    /// assert_eq!(tuple_vec, vec![(1, Box::new("a")), (2, Box::new("b"))]);
+    /// assert_eq!(tuple_vec, vec!["a", "b"]);
     /// ```
     pub fn into_tuple_vec(self) -> Vec<T> {
         self.set.into_inner().into_iter().collect::<Vec<_>>()
@@ -388,28 +364,6 @@ impl<T: Clone + Ord + StableDeref> From<BTreeSet<T>> for FrozenBTreeSet<T> {
             set: UnsafeCell::new(set),
             in_use: Cell::new(false),
         }
-    }
-}
-
-impl<Q: ?Sized, T> Index<&Q> for FrozenBTreeSet<T>
-where
-    Q: Ord,
-    T: Clone + Ord + StableDeref + Borrow<Q>,
-{
-    type Output = T::Target;
-
-    /// # Examples
-    ///
-    /// ```
-    /// use elsa::FrozenBTreeSet;
-    ///
-    /// let set = FrozenBTreeSet::new();
-    /// set.insert(1, Box::new("a"));
-    /// assert_eq!(set[&1], "a");
-    /// ```
-    fn index(&self, idx: &Q) -> &T::Target {
-        self.get(idx)
-            .expect("attempted to index FrozenBTreeSet with unknown key")
     }
 }
 
