@@ -117,7 +117,7 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     // }
 
     /// Returns a reference to the value passed as argument if present in the set.
-    /// 
+    ///
     /// # Arguments
     /// * `k` may be any type that implements [`Equivalent<T>`].
     ///
@@ -146,10 +146,10 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
     }
 
     /// Returns the index corresponding to the value if present in the set
-    /// 
+    ///
     /// # Arguments
     /// * `k` may be any type that implements [`Equivalent<T>`].
-    /// 
+    ///
     /// # Examples
     ///
     /// ```
@@ -176,7 +176,7 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
 
     /// Returns a reference to the value passed as argument if present in the set,
     /// along with its index
-    /// 
+    ///
     /// # Arguments
     /// * `k` may be any type that implements [`Equivalent<T>`].
     ///

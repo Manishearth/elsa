@@ -665,13 +665,15 @@ const fn buffer_index(i: usize) -> usize {
     (((usize::BITS + 1 - (i + 1).leading_zeros()) >> 1) - 1) as usize
 }
 
-const NUM_BUFFERS: usize = (usize::BITS >> 2) as usize;
+/// Each buffer covers 2 bits of address space, so we need half as many
+/// buffers as bits in a usize.
+const NUM_BUFFERS: usize = (usize::BITS / 2) as usize;
 
 /// Append-only threadsafe version of `std::vec::Vec` where
 /// insertion does not require mutable access.
 /// Does not lock for reading, only allows `Copy` types and
 /// will spinlock on pushes without affecting reads.
-/// Note that this data structure is `64` pointers large on
+/// Note that this data structure is `34` pointers large on
 /// 64 bit systems,
 /// in contrast to `Vec` which is `3` pointers large.
 pub struct LockFreeFrozenVec<T: Copy> {
