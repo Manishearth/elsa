@@ -90,7 +90,7 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     }
 
     /// Returns a reference to the value corresponding to the key.
-    /// 
+    ///
     /// # Arguments
     /// * `k` may be any type that implements [`Equivalent<K>`].
     ///
@@ -119,7 +119,7 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     }
 
     /// Returns the index corresponding to the key
-    /// 
+    ///
     /// # Arguments
     /// * `k` may be any type that implements [`Equivalent<K>`].
     ///
@@ -175,7 +175,7 @@ impl<K: Eq + Hash, V: StableDeref, S: BuildHasher> FrozenIndexMap<K, V, S> {
     }
 
     /// Returns a reference to the key, along with its index and a reference to its value
-    /// 
+    ///
     /// # Arguments
     /// * `k` may be any type that implements [`Equivalent<K>`].
     ///
