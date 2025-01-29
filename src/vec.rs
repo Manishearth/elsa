@@ -17,9 +17,9 @@ pub struct FrozenVec<T> {
 
 impl<T> FrozenVec<T> {
     /// Constructs a new, empty vector.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
-            vec: UnsafeCell::new(Default::default()),
+            vec: UnsafeCell::new(Vec::new()),
         }
     }
 }
