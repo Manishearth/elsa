@@ -311,9 +311,9 @@ pub struct FrozenBTreeMap<K, V> {
 // safety: UnsafeCell implies !Sync
 
 impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
-            map: UnsafeCell::new(Default::default()),
+            map: UnsafeCell::new(BTreeMap::new()),
             in_use: Cell::new(false),
         }
     }

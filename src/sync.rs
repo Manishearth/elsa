@@ -473,8 +473,10 @@ impl<T> FrozenVec<T> {
 }
 
 impl<T: StableDeref> FrozenVec<T> {
-    pub fn new() -> Self {
-        Default::default()
+    pub const fn new() -> Self {
+        Self {
+            vec: RwLock::new(Vec::new()),
+        }
     }
 
     // these should never return &T
@@ -705,11 +707,7 @@ impl<T: Copy> Default for LockFreeFrozenVec<T> {
     /// Creates an empty `LockFreeFrozenVec` that does not allocate
     /// any heap allocations until the first time data is pushed to it.
     fn default() -> Self {
-        Self {
-            data: Self::null(),
-            len: AtomicUsize::new(0),
-            locked: AtomicBool::new(false),
-        }
+        Self::new()
     }
 }
 
@@ -718,8 +716,12 @@ impl<T: Copy> LockFreeFrozenVec<T> {
         [const { AtomicPtr::new(std::ptr::null_mut()) }; NUM_BUFFERS]
     }
 
-    pub fn new() -> Self {
-        Default::default()
+    pub const fn new() -> Self {
+        Self {
+            data: Self::null(),
+            len: AtomicUsize::new(0),
+            locked: AtomicBool::new(false),
+        }
     }
 
     /// Obtains a write lock that ensures other writing threads
@@ -1009,7 +1011,7 @@ fn test_non_lockfree() {
 pub struct FrozenBTreeMap<K, V>(RwLock<BTreeMap<K, V>>);
 
 impl<K: Clone + Ord, V: StableDeref> FrozenBTreeMap<K, V> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self(RwLock::new(BTreeMap::new()))
     }
 
