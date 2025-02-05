@@ -712,8 +712,10 @@ impl<T: Copy> Default for LockFreeFrozenVec<T> {
 }
 
 impl<T: Copy> LockFreeFrozenVec<T> {
+    const NULL_ATOMIC_PTR: AtomicPtr<T> = AtomicPtr::new(std::ptr::null_mut());
+
     const fn null() -> [AtomicPtr<T>; NUM_BUFFERS] {
-        [const { AtomicPtr::new(std::ptr::null_mut()) }; NUM_BUFFERS]
+        [Self::NULL_ATOMIC_PTR; NUM_BUFFERS]
     }
 
     pub const fn new() -> Self {
