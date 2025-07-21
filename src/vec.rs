@@ -74,6 +74,13 @@ impl<T: Copy> FrozenVec<T> {
             (&*vec).get(index).copied()
         }
     }
+
+    /// Returns an iterator of copies of the elements
+    ///
+    /// It is safe to push to the vector during iteration
+    pub fn copy_iter(&self) -> CopyIter<'_, T> {
+        CopyIter { vec: self, idx: 0 }
+    }
 }
 
 impl<T> FrozenVec<T> {
@@ -292,6 +299,27 @@ where
     }
 }
 
+/// Iterator over `FrozenVec`, obtained via [`.copy_iter()`](FrozenVec::copy_iter)
+///
+/// It is safe to push to the vector during iteration
+pub struct CopyIter<'a, T> {
+    vec: &'a FrozenVec<T>,
+    idx: usize,
+}
+
+impl<'a, T: Copy> Iterator for CopyIter<'a, T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(ret) = self.vec.get_copy(self.idx) {
+            self.idx += 1;
+            Some(ret)
+        } else {
+            None
+        }
+    }
+}
+
 #[test]
 fn test_iteration() {
     let vec = vec!["a", "b", "c", "d"];
@@ -303,6 +331,19 @@ fn test_iteration() {
     }
 
     assert_eq!(vec.len(), frozen.iter().count())
+}
+
+#[test]
+fn test_copy_iteration() {
+    let vec = vec![1, 2, 3, 4, 5];
+    let frozen: FrozenVec<_> = vec.clone().into();
+
+    assert_eq!(vec, frozen.copy_iter().collect::<Vec<_>>());
+    for (e1, e2) in vec.iter().zip(frozen.copy_iter()) {
+        assert_eq!(*e1, e2);
+    }
+
+    assert_eq!(vec.len(), frozen.copy_iter().count())
 }
 
 #[test]
