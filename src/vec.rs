@@ -225,8 +225,19 @@ impl<T> Default for FrozenVec<T> {
 
 impl<T: Clone> Clone for FrozenVec<T> {
     fn clone(&self) -> Self {
+        // Vec::clone() will internally call Clone impls, which may reaccess the FrozenVec
+        // Instead, we iterate element-by-element.
+        let mut newvec;
+        unsafe {
+            let len = self.vec.get().as_ref().unwrap().len();
+            newvec = Vec::with_capacity(len);
+            for i in 0..len {
+                let element = self.vec.get().as_ref().unwrap()[i].clone();
+                newvec.push(element);
+            }
+        }
         Self {
-            vec: unsafe { self.vec.get().as_ref().unwrap() }.clone().into(),
+            vec: UnsafeCell::new(newvec),
         }
     }
 }
