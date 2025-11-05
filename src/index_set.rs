@@ -56,7 +56,8 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
         let ret = unsafe {
             let set = self.set.get();
             let (index, _was_vacant) = (*set).insert_full(value);
-            &*(*set)[index]
+            let set_ref = &(*set);
+            &*set_ref[index]
         };
         self.in_use.set(false);
         ret
@@ -83,7 +84,8 @@ impl<T: Eq + Hash + StableDeref, S: BuildHasher> FrozenIndexSet<T, S> {
         let ret = unsafe {
             let set = self.set.get();
             let (index, _was_vacant) = (*set).insert_full(value);
-            (index, &*(*set)[index])
+            let set_ref = &(*set);
+            (index, &*set_ref[index])
         };
         self.in_use.set(false);
         ret
@@ -261,7 +263,8 @@ impl<T: Eq + Hash + StableDeref, S> Index<usize> for FrozenIndexSet<T, S> {
         self.in_use.set(true);
         let ret = unsafe {
             let set = self.set.get();
-            &*(*set)[idx]
+            let set_ref = &(*set);
+            &*set_ref[idx]
         };
         self.in_use.set(false);
         ret
