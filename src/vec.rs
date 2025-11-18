@@ -306,7 +306,23 @@ where
     T::Target: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
-        unsafe { self.vec.get().as_ref() == other.vec.get().as_ref() }
+        let selflen = self.len();
+        if selflen != other.len() {
+            return false;
+        }
+
+        // Vec::eq() will internally call PartialEq impls, which may reaccess the FrozenVec
+        // Instead, we iterate element-by-element.
+        for i in 0..selflen {
+            unsafe {
+                let self_element_ref = &self.vec.get().as_ref().unwrap()[i];
+                let other_element_ref = &other.vec.get().as_ref().unwrap()[i];
+                if other_element_ref != self_element_ref {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }
 
