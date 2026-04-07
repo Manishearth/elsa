@@ -118,6 +118,14 @@ impl<T: StableDeref> FrozenVec<T> {
     pub fn iter(&self) -> Iter<'_, T> {
         self.into_iter()
     }
+
+    /// Returns the number of elements the vector can hold without reallocating.
+    pub fn capacity(&self) -> usize {
+        unsafe {
+            let vec = self.vec.get();
+            (*vec).capacity()
+        }
+    }
 }
 
 impl<T> FrozenVec<T> {
@@ -381,6 +389,7 @@ fn test_accessors() {
     assert_eq!(vec.len(), 0);
     assert_eq!(vec.first(), None);
     assert_eq!(vec.last(), None);
+    assert_eq!(vec.capacity(), 0);
     assert_eq!(vec.get(1), None);
 
     vec.push("a".to_string());
@@ -394,6 +403,7 @@ fn test_accessors() {
     assert_eq!(vec.len(), 3);
     assert_eq!(vec.first(), Some("a"));
     assert_eq!(vec.last(), Some("c"));
+    assert_eq!(vec.capacity(), 4); // capacity is implementation-defined, but should be at least 4 here
     assert_eq!(vec.get(1), Some("b"));
 
     assert_eq!(item, "a");
