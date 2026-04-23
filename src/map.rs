@@ -171,6 +171,48 @@ impl<K, V, S> FrozenMap<K, V, S> {
         self.map.into_inner()
     }
 
+    /// Create [`HashMap`] with copies of original keys and references to original values.
+    /// So you can iterate over `FrozenMap` if you have shared reference to it
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use elsa::FrozenMap;
+    ///
+    /// let map = FrozenMap::new();
+    /// map.insert(1, Box::new("a"));
+    /// for i in map.map_of_refs() {
+    ///     assert_eq!(i, (1, &"a"));
+    /// }
+    /// ```
+    ///
+    /// # Rationale
+    ///
+    /// Let's assume we have shared reference to our `FrozenMap` and we want to
+    /// read somehow all its values. How to do this? We cannot return iterator to underlying
+    /// [`HashMap`]: this will not work if we insert new values before dropping
+    /// the iterator. Maybe we can create deep copy of underlying [`HashMap`]? No.
+    /// First, this will require [`Clone`] for `V`, and so in particular this will not work if `V` is
+    /// another `FrozenMap` (as of 2022-01-17 `FrozenMap` is not [`Clone`]). Second, this
+    /// will not have much sense, because values may be self-referential.
+    /// And so their copies will contain references to original values,
+    /// this is not what we want. So, the only remaining way to read all the values is this:
+    /// create shallow copy of underlying [`HashMap`]. Such copy will contain copies of the keys
+    /// and references to the values. Once you got such [`HashMap`], you can iterate over it
+    pub fn map_of_refs(&self) -> HashMap<K, &V::Target>
+    where
+        K: Clone,
+    {
+        assert!(!self.in_use.get());
+        self.in_use.set(true);
+        let mut result = HashMap::new();
+        for (k, v) in unsafe { (*self.map.get()).iter() } {
+            result.insert(K::clone(k), &**v);
+        }
+        self.in_use.set(false);
+        result
+    }
+
     // TODO add more
 }
 
