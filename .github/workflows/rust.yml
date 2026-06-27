@@ -1,4 +1,4 @@
-name: Rust CI
+name: Rust
 
 on:
   push:
@@ -22,7 +22,6 @@ jobs:
         run: cargo test --verbose --all-features
 
   miri:
-    name: "Miri"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -34,4 +33,4 @@ jobs:
           cargo miri setup
 
       - name: Test with Miri
-        run: cargo miri test
+        run: cargo miri test --verbose --all-features
