@@ -2,21 +2,35 @@ name: Rust
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --verbose --all-features
-    - name: Run tests
-      run: cargo test --verbose --all-features
+      - uses: actions/checkout@v7
+
+      - name: Build
+        run: cargo build --verbose --all-features
+
+      - name: Run tests
+        run: cargo test --verbose --all-features
+
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Miri
+        run: |
+          rustup toolchain install nightly --component miri
+          rustup override set nightly
+          cargo miri setup
+
+      - name: Test with Miri
+        run: cargo miri test --verbose --all-features
