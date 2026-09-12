@@ -35,6 +35,16 @@ impl<T> FrozenVec<T> {
             (*vec).push(val)
         }
     }
+
+    /// Reserves space for at least `additional` more elements.
+    ///
+    /// See [`Vec::reserve()`] for details.
+    pub fn reserve(&self, additional: usize) {
+        unsafe {
+            let vec = self.vec.get();
+            (*vec).reserve(additional)
+        }
+    }
 }
 
 impl<T: StableDeref> FrozenVec<T> {
